@@ -123,7 +123,16 @@ export class CalendarWeekViewCard extends LitElement {
         }),
       );
       this._error = errors.join('\n');
-      this._columns = buildDayColumns({ days, now: this._now(), events });
+      let finalEvents = events;
+      if (cfg.combineSimilarEvents) {
+        const seen = new Set<string>();
+        finalEvents = events.filter((e) => {
+          if (seen.has(e.key)) return false;
+          seen.add(e.key);
+          return true;
+        });
+      }
+      this._columns = buildDayColumns({ days, now: this._now(), events: finalEvents });
       if (cfg.weather) void this._subscribeWeather();
     } finally {
       this._loading = false;
@@ -209,6 +218,7 @@ export class CalendarWeekViewCard extends LitElement {
       >
         <div class="cwv">
           ${this._error ? html`<ha-alert alert-type="error">${this._error}</ha-alert>` : ''}
+          ${cfg.title ? html`<div class="card-title">${cfg.title}</div>` : ''}
           <div class="topbar">${this._renderNav()} ${this._renderLegend()}</div>
           <div class="week">${this._columns.map((col) => this._renderDay(col))}</div>
         </div>

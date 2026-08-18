@@ -45,6 +45,13 @@ export const styles = css`
     display: block;
     margin-bottom: 10px;
   }
+  .card-title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 2px 2px 12px;
+    color: var(--primary-text-color);
+  }
 
   /* floating add — bottom-right, tablet touch target */
   .fab {
