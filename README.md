@@ -17,17 +17,29 @@ configuration surface are new.
 
 ### HACS (recommended)
 
-1. HACS → **Frontend** → menu → **Custom repositories**.
-2. Add this repository with category **Dashboard** (Lovelace).
-3. Install **Calendar Week View**, then reload resources.
+This card is not in the default HACS store yet, so add it as a **custom repository**:
+
+1. In Home Assistant, open **HACS**.
+2. Top-right menu (⋮) → **Custom repositories**.
+3. Paste `https://github.com/mswiszcz/calendar-week-view`, choose type **Dashboard**, and click **Add**.
+4. Search HACS for **Calendar Week View** and click **Download** (installs the latest release).
+5. HACS registers the dashboard resource automatically. If it does not, add it under
+   **Settings → Dashboards → ⋮ → Resources → Add resource**:
+   - URL: `/hacsfiles/calendar-week-view/calendar-week-view.js`
+   - Resource type: **JavaScript Module**
+6. Hard-refresh the browser, then add the card (see [Usage](#usage)).
+
+[![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mswiszcz&repository=calendar-week-view&category=dashboard)
 
 ### Manual
 
-1. Download `dist/calendar-week-view.js` from a release.
+1. Download `calendar-week-view.js` from the
+   [latest release](https://github.com/mswiszcz/calendar-week-view/releases/latest).
 2. Copy it into `config/www/` on your Home Assistant instance.
-3. Settings → Dashboards → menu → **Resources** → **Add resource**:
-   - URL `/local/calendar-week-view.js`
-   - Type **JavaScript Module**
+3. **Settings → Dashboards → ⋮ → Resources → Add resource**:
+   - URL: `/local/calendar-week-view.js`
+   - Resource type: **JavaScript Module**
+4. Hard-refresh the browser.
 
 ## Usage
 
