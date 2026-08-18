@@ -45,15 +45,25 @@ export function isAllDay(start: DateTime, end: DateTime): boolean {
   return startMidnight && endMidnight && end.diff(start, 'hours').hours >= 24;
 }
 
-function parseApiDate(part: { dateTime?: string; date?: string }): { dt: DateTime; dateOnly: boolean } {
-  if (part.date) return { dt: DateTime.fromISO(part.date).startOf('day'), dateOnly: true };
-  return { dt: DateTime.fromISO(part.dateTime ?? ''), dateOnly: false };
+function parseApiDate(part: { dateTime?: string; date?: string }, zone: string): { dt: DateTime; dateOnly: boolean } {
+  if (part.date) return { dt: DateTime.fromISO(part.date, { zone }).startOf('day'), dateOnly: true };
+  return { dt: DateTime.fromISO(part.dateTime ?? '', { zone }), dateOnly: false };
 }
 
-/** Convert a raw HA calendar event into a normalized WeekEvent (pre-split). */
-export function normalizeEvent(input: CalendarEventInput, cal: CalendarConfig, combineSimilar: boolean): WeekEvent {
-  const start = parseApiDate(input.start);
-  const end = parseApiDate(input.end);
+/**
+ * Convert a raw HA calendar event into a normalized WeekEvent (pre-split).
+ *
+ * @param zone IANA timezone (the HA timezone) used to parse date-only and offset-less
+ *   datetimes, so event days align with the day-column grid built in the same zone.
+ */
+export function normalizeEvent(
+  input: CalendarEventInput,
+  cal: CalendarConfig,
+  combineSimilar: boolean,
+  zone = 'local',
+): WeekEvent {
+  const start = parseApiDate(input.start, zone);
+  const end = parseApiDate(input.end, zone);
   const summary = input.summary ?? '';
   const allDay = start.dateOnly && end.dateOnly ? true : isAllDay(start.dt, end.dt);
   const multiDay = end.dt.startOf('day') > start.dt.startOf('day').plus({ days: allDay ? 1 : 0 });

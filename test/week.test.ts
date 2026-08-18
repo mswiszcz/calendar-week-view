@@ -99,6 +99,31 @@ describe('normalizeEvent', () => {
     };
     expect(normalizeEvent(input, cal, false).allDay).toBe(true);
   });
+  test('parses a date-only start in the given zone', () => {
+    const ev = normalizeEvent(
+      { summary: 'Trip', start: { date: '2026-08-19' }, end: { date: '2026-08-20' } },
+      cal, false, 'America/New_York',
+    );
+    expect(ev.start.zoneName).toBe('America/New_York');
+    expect(ev.start.toISODate()).toBe('2026-08-19');
+    expect(ev.start.hour).toBe(0);
+  });
+});
+
+describe('normalizeEvent key / combineSimilar', () => {
+  const calA: CalendarConfig = { entity: 'calendar.a', color: '#111' };
+  const calB: CalendarConfig = { entity: 'calendar.b', color: '#222' };
+  const input: CalendarEventInput = {
+    summary: 'Sync',
+    start: { dateTime: '2026-08-19T09:00' },
+    end: { dateTime: '2026-08-19T09:30' },
+  };
+  test('with combineSimilar merges identical events across calendars', () => {
+    expect(normalizeEvent(input, calA, true).key).toBe(normalizeEvent(input, calB, true).key);
+  });
+  test('without combineSimilar keeps per-calendar events distinct', () => {
+    expect(normalizeEvent(input, calA, false).key).not.toBe(normalizeEvent(input, calB, false).key);
+  });
 });
 
 describe('buildDayColumns', () => {

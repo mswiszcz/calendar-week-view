@@ -60,6 +60,8 @@ export class CalendarWeekViewAddDialog extends LitElement {
         <div class="row">
           <ha-select
             label="Calendar"
+            fixedMenuPosition
+            naturalMenuWidth
             .value=${this._entity}
             @selected=${(e: CustomEvent) => (this._entity = (e.target as HTMLSelectElement).value)}
             @closed=${(e: Event) => e.stopPropagation()}

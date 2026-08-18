@@ -1,6 +1,14 @@
 import { css } from 'lit';
 
 export const styles = css`
+  * {
+    box-sizing: border-box;
+  }
+  /*
+   * Derived tints are relative to the HA theme tokens (--primary-text-color over
+   * --card-background-color), so they track whatever HA theme is active — light or
+   * dark — without keying off prefers-color-scheme, which does not follow the HA theme.
+   */
   :host {
     --cwv-day-h: 416px;
     --cwv-visible: 3;
@@ -8,18 +16,6 @@ export const styles = css`
     --neutral-tile: color-mix(in srgb, var(--primary-text-color, #1a1c1e) 3%, var(--card-background-color, #ffffff));
     --hover-tint: color-mix(in srgb, var(--primary-text-color, #1a1c1e) 5%, transparent);
     --today-tint: color-mix(in srgb, var(--primary-color, #0aa2e6) 8%, var(--card-background-color, #ffffff));
-  }
-  @media (prefers-color-scheme: dark) {
-    :host(:not([data-theme='light'])) {
-      --neutral-tile: color-mix(in srgb, #ffffff 4%, var(--card-background-color, #1b1d21));
-      --hover-tint: color-mix(in srgb, #ffffff 7%, transparent);
-      --today-tint: color-mix(in srgb, var(--primary-color, #22b8f0) 14%, var(--card-background-color, #1b1d21));
-    }
-  }
-  :host([data-theme='dark']) {
-    --neutral-tile: color-mix(in srgb, #ffffff 4%, var(--card-background-color, #1b1d21));
-    --hover-tint: color-mix(in srgb, #ffffff 7%, transparent);
-    --today-tint: color-mix(in srgb, var(--primary-color, #22b8f0) 14%, var(--card-background-color, #1b1d21));
   }
 
   ha-card {
@@ -44,6 +40,7 @@ export const styles = css`
   ha-alert {
     display: block;
     margin-bottom: 10px;
+    white-space: pre-line;
   }
   .card-title {
     font-size: 20px;

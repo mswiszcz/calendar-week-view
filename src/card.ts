@@ -36,10 +36,13 @@ export class CalendarWeekViewCard extends LitElement {
   @state() private _hiddenCalendars = new Set<string>();
   @state() private _forecast = new Map<string, ForecastSlot>();
   @state() private _error = '';
+  @state() private _weatherError = '';
   @state() private _detailsEvent: WeekEvent | null = null;
 
   private _hass?: HomeAssistant;
   private _loading = false;
+  private _refetchQueued = false;
+  private _needsScroll = true;
   private _timer?: number;
   private _weatherUnsub?: () => void;
   private _weatherPending = false;
@@ -94,10 +97,15 @@ export class CalendarWeekViewCard extends LitElement {
 
   /** Fetch events for the shown week, normalize, split into day columns. */
   private async _fetchAndBuild(): Promise<void> {
-    if (!this._hass || !this._config || this._loading) return;
+    if (!this._hass || !this._config) return;
+    if (this._loading) {
+      this._refetchQueued = true;
+      return;
+    }
     this._loading = true;
     try {
       const cfg = this._config;
+      const zone = this._hass.config?.time_zone ?? 'local';
       const start = computeWeekStart(this._now(), cfg.weekStartsOn ?? 'monday', this._weekOffset);
       const count = dayCountFor(cfg.hideWeekend ?? false);
       const end = start.plus({ days: count });
@@ -107,21 +115,22 @@ export class CalendarWeekViewCard extends LitElement {
       await Promise.all(
         cfg.calendars.map(async (cal) => {
           if (this._hiddenCalendars.has(cal.entity)) return;
+          const filter = cal.filter ? new RegExp(cal.filter) : null;
           try {
             const url =
               `calendars/${cal.entity}?start=${encodeURIComponent(start.toISO() ?? '')}` +
               `&end=${encodeURIComponent(end.toISO() ?? '')}`;
             const raw = (await this._hass!.callApi('GET', url)) as CalendarEventInput[];
             for (const item of raw) {
-              const filter = cal.filter ? new RegExp(cal.filter) : null;
               if (filter && filter.test(item.summary ?? '')) continue;
-              events.push(normalizeEvent(item, cal, cfg.combineSimilarEvents ?? false));
+              events.push(normalizeEvent(item, cal, cfg.combineSimilarEvents ?? false, zone));
             }
           } catch (e) {
             errors.push(`${cal.name ?? cal.entity}: ${(e as Error).message}`);
           }
         }),
       );
+      if (!this.isConnected) return;
       this._error = errors.join('\n');
       let finalEvents = events;
       if (cfg.combineSimilarEvents) {
@@ -136,7 +145,14 @@ export class CalendarWeekViewCard extends LitElement {
       if (cfg.weather) void this._subscribeWeather();
     } finally {
       this._loading = false;
-      this._scheduleRefresh();
+      if (this.isConnected) {
+        if (this._refetchQueued) {
+          this._refetchQueued = false;
+          void this._fetchAndBuild();
+        } else {
+          this._scheduleRefresh();
+        }
+      }
     }
   }
 
@@ -158,7 +174,7 @@ export class CalendarWeekViewCard extends LitElement {
         { type: 'weather/subscribe_forecast', forecast_type: 'hourly', entity_id: this._config.weather.entity },
       );
     } catch (e) {
-      this._error = `Weather: ${(e as Error).message}`;
+      this._weatherError = `Weather: ${(e as Error).message}`;
     } finally {
       this._weatherPending = false;
     }
@@ -176,6 +192,7 @@ export class CalendarWeekViewCard extends LitElement {
 
   private _shiftWeek(offset: number): void {
     this._weekOffset = offset === 0 ? 0 : this._weekOffset + offset;
+    this._needsScroll = true;
     void this._fetchAndBuild();
   }
 
@@ -195,15 +212,19 @@ export class CalendarWeekViewCard extends LitElement {
     dlg?.show();
   }
 
-  /** After each render, scroll the week strip so today leads the visible window. */
+  /** Scroll the week strip so today leads the window — only after a load or week change. */
   protected updated(): void {
+    if (!this._needsScroll) return;
     const strip = this.renderRoot.querySelector<HTMLElement>('.week');
-    if (!strip) return;
+    if (!strip || this._columns.length === 0) return;
     const todayIndex = this._columns.findIndex((c) => c.isToday);
     const visible = this._config.visibleDays ?? 3;
     const startIndex = this._weekOffset === 0 ? autoScrollStartIndex(todayIndex, this._columns.length, visible) : 0;
     const target = strip.children[startIndex] as HTMLElement | undefined;
-    if (target) strip.scrollLeft = target.offsetLeft - strip.offsetLeft;
+    if (target) {
+      strip.scrollLeft = target.offsetLeft - strip.offsetLeft;
+      this._needsScroll = false;
+    }
   }
 
   render() {
@@ -218,6 +239,7 @@ export class CalendarWeekViewCard extends LitElement {
       >
         <div class="cwv">
           ${this._error ? html`<ha-alert alert-type="error">${this._error}</ha-alert>` : ''}
+          ${this._weatherError ? html`<ha-alert alert-type="warning">${this._weatherError}</ha-alert>` : ''}
           ${cfg.title ? html`<div class="card-title">${cfg.title}</div>` : ''}
           <div class="topbar">${this._renderNav()} ${this._renderLegend()}</div>
           <div class="week">${this._columns.map((col) => this._renderDay(col))}</div>
