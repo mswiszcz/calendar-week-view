@@ -1,0 +1,7 @@
+{
+  "name": "Calendar Week View",
+  "content_in_root": false,
+  "render_readme": true,
+  "filename": "calendar-week-view.js",
+  "homeassistant": "2024.4.0"
+}

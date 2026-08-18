@@ -1,0 +1,31 @@
+{
+  "name": "calendar-week-view",
+  "version": "1.0.0",
+  "description": "Home Assistant Lovelace card: current-week calendar view with quick add and hourly weather.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Mateusz Świszcz",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src test",
+    "format": "oxfmt src test",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "lit": "3.3.3",
+    "luxon": "3.7.2"
+  },
+  "devDependencies": {
+    "@types/luxon": "3.7.4",
+    "@types/node": "26.2.0",
+    "custom-card-helpers": "2.0.0",
+    "esbuild": "0.28.2",
+    "home-assistant-js-websocket": "9.6.0",
+    "oxfmt": "0.64.0",
+    "oxlint": "1.79.0",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}
