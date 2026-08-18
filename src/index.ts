@@ -1,6 +1,8 @@
 import { CalendarWeekViewCard } from '@/card';
+import { CalendarWeekViewAddDialog } from '@/add-event-dialog';
 
 customElements.define('calendar-week-view', CalendarWeekViewCard);
+customElements.define('calendar-week-view-add-dialog', CalendarWeekViewAddDialog);
 (window as unknown as { customCards: unknown[] }).customCards ??= [];
 (window as unknown as { customCards: unknown[] }).customCards.push({
   type: 'calendar-week-view',
