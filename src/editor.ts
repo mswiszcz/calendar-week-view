@@ -89,8 +89,13 @@ const LABELS: Record<string, string> = {
 
 /** Helper text shown under specific fields to explain what they do. */
 const HELPERS: Record<string, string> = {
+  orientation:
+    'Vertical stacks the days full-height and grows the card to fit them — the dashboard scrolls, nothing inside the card does. Horizontal is a scrollable day strip.',
+  visibleDays:
+    'Days shown at once: strip columns when horizontal, and the number of days listed from today when vertical.',
   compact: 'Tighter padding and shorter rows to fit more in less vertical space.',
-  height: 'The card never shrinks below this but still grows to fill its container, e.g. 520px.',
+  height:
+    'The card never shrinks below this but still grows to fill its container, e.g. 520px. Ignored in vertical agenda, which sizes to its content.',
   timeFormat: 'Luxon tokens for event start/end times, e.g. HH:mm or h:mm a.',
   dateFormat: 'Luxon tokens for the meta line above each day number, e.g. yyyy · LLLL · cccc.',
   clockFormat: 'Luxon tokens for the header clock; add ss (e.g. HH:mm:ss) to tick every second.',

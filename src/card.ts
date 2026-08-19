@@ -120,6 +120,15 @@ export class CalendarWeekViewCard extends LitElement {
     return 8;
   }
 
+  /**
+   * Sections-view sizing. Vertical agenda has no internal scroll, so let the grid
+   * grow to the full-height day list (`rows: 'auto'`) instead of clamping it to a
+   * fixed row count; other modes keep the default fixed-height cell.
+   */
+  getGridOptions(): { rows?: number | 'auto' } {
+    return this._config && this._isVertical() ? { rows: 'auto' } : {};
+  }
+
   set hass(hass: HomeAssistant) {
     const first = !this._hass;
     this._hass = hass;
@@ -228,7 +237,7 @@ export class CalendarWeekViewCard extends LitElement {
     try {
       const cfg = this._config;
       const now = this._now();
-      const days = this._isLocked()
+      const days = this._isStaticSpan()
         ? lockedDays(now, cfg.visibleDays ?? 3, cfg.hideWeekend ?? false)
         : windowDays(
             computeWeekStart(now, cfg.weekStartsOn ?? 'monday', this._windowOffset),
@@ -272,10 +281,10 @@ export class CalendarWeekViewCard extends LitElement {
   private _refreshUpcoming(windowEvents: WeekEvent[]): void {
     if (this._config.showNextEvent === false) return;
     const now = this._now();
-    // The rendered window carries enough lookahead only in the seamless view; the
-    // lock-to-today span is just a few days, so fall through to the agenda fetch —
-    // otherwise the next event past the locked span would never surface.
-    if (!this._isLocked() && this._columns.some((c) => c.isToday)) {
+    // The rendered window carries enough lookahead only in the seamless view; a
+    // static span is just a few days, so fall through to the agenda fetch —
+    // otherwise the next event past that span would never surface.
+    if (!this._isStaticSpan() && this._columns.some((c) => c.isToday)) {
       this._upcoming = pickUpcoming(now, windowEvents);
       return;
     }
@@ -438,9 +447,18 @@ export class CalendarWeekViewCard extends LitElement {
     return !!this._config.lockToday;
   }
 
-  /** Paging arrows, return glyph, and the seamless window are active only when not locked. */
+  /**
+   * A static span renders a fixed run of days from today with no seamless window:
+   * lock-to-today by request, and vertical agenda because it grows to fit its
+   * content rather than scrolling/paging a buffered window.
+   */
+  private _isStaticSpan(): boolean {
+    return this._isLocked() || this._isVertical();
+  }
+
+  /** Paging arrows, return glyph, and the seamless window are active only for a scrolling window. */
   private _navEnabled(): boolean {
-    return this._config.showNavigation !== false && !this._isLocked();
+    return this._config.showNavigation !== false && !this._isStaticSpan();
   }
 
   /**
@@ -485,8 +503,8 @@ export class CalendarWeekViewCard extends LitElement {
   private async _afterScroll(): Promise<void> {
     const strip = this._strip();
     if (!strip || this._columns.length === 0 || this._loading || this._jumping) return;
-    // Locked-to-today renders a fixed span with no seamless window — never recenter.
-    if (this._isLocked()) return;
+    // A static span (locked, or vertical agenda) has no seamless window — never recenter.
+    if (this._isStaticSpan()) return;
     this._pageTargetCol = undefined;
     this._updateTodayVisibility();
     const idx = this._firstVisibleIndex(strip);
@@ -610,9 +628,9 @@ export class CalendarWeekViewCard extends LitElement {
   private _landToday(): void {
     const strip = this._strip();
     if (!strip || this._columns.length === 0 || this._axis().client(strip) === 0) return;
-    // Locked: the span starts at today, so there is no window landing to wait for —
+    // Static span: it starts at today, so there is no window landing to wait for —
     // only the calendar grid needs its start-hour scroll.
-    if (this._isLocked()) {
+    if (this._isStaticSpan()) {
       if (this._isCalendar()) strip.scrollTop = this._startHour() * HOUR_H;
       this._scrollToToday = false;
       return;
@@ -657,6 +675,7 @@ export class CalendarWeekViewCard extends LitElement {
           nohighlight: cfg.highlightToday === false,
           notodayborder: cfg.todayBorder === false,
           notodaytext: cfg.todayText === false,
+          vagenda: this._isVertical(),
         })}
         style=${styleParts.join(';')}
       >
