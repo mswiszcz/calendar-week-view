@@ -1085,11 +1085,24 @@ export class CalendarWeekViewCard extends LitElement {
     if (!e) return html``;
     const timeFmt = this._config.timeFormat ?? 'HH:mm';
     const status = eventStatus(this._now(), e);
-    const dateLine = this._fmt(e.originalStart, 'cccc d LLLL');
+    // Multi-day events show the full start–end date range. All-day end dates are
+    // exclusive, so step back a day to name the last day the event actually covers.
+    const inclusiveEnd = e.allDay ? e.originalEnd.minus({ days: 1 }) : e.originalEnd;
+    const spanDays = Math.round(e.originalEnd.startOf('day').diff(e.originalStart.startOf('day'), 'days').days);
+    const dateLine = e.multiDay
+      ? `${this._fmt(e.originalStart, 'ccc d LLL')} – ${this._fmt(inclusiveEnd, 'ccc d LLL')}`
+      : this._fmt(e.originalStart, 'cccc d LLLL');
     const timeLine = e.allDay
-      ? 'All day'
+      ? e.multiDay
+        ? `All day · ${spanDays} days`
+        : 'All day'
       : `${this._fmt(e.originalStart, timeFmt)} – ${this._fmt(e.originalEnd, timeFmt)}`;
     const durationLine = e.allDay ? '' : formatEventDuration(e);
+    const whenIcon = e.multiDay
+      ? 'mdi:calendar-range-outline'
+      : e.allDay
+        ? 'mdi:calendar-blank-outline'
+        : 'mdi:calendar-clock-outline';
     const canDelete = this._canMutate(e, CalendarFeature.DELETE);
     const canEdit = this._canMutate(e, CalendarFeature.UPDATE);
     return html`
@@ -1113,7 +1126,7 @@ export class CalendarWeekViewCard extends LitElement {
           </div>
           <div class="gate-body">
             <div class="gate-row">
-              <ha-icon icon=${e.allDay ? 'mdi:calendar-blank-outline' : 'mdi:calendar-clock-outline'}></ha-icon>
+              <ha-icon icon=${whenIcon}></ha-icon>
               <div class="gate-rt">
                 <b>${dateLine}</b>
                 <small>${timeLine}${durationLine ? ` · ${durationLine}` : ''}</small>

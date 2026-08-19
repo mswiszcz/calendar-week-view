@@ -488,6 +488,9 @@ export const styles = css`
   .week.vert {
     flex-direction: column;
     overflow: visible;
+    /* let the column shrink to the card width so a long title wraps instead of
+       widening the row and spilling off the right edge */
+    min-width: 0;
   }
   .week.vert .day {
     flex: 0 0 auto;
@@ -496,6 +499,12 @@ export const styles = css`
   .week.vert .events {
     flex: 0 0 auto;
     overflow: visible;
+  }
+  /* full-width vertical rows have room to wrap; break long names onto new lines */
+  .week.vert .ev .title {
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
   }
   .day {
     position: relative;
@@ -929,12 +938,16 @@ export const styles = css`
      header and carries the live countdown; a calm body of when / where / description. */
   .details-dialog {
     --dialog-content-padding: 0;
-    --mdc-dialog-min-width: 300px;
-    --mdc-dialog-max-width: 410px;
+    --mdc-dialog-min-width: 400px;
+    --mdc-dialog-max-width: 440px;
     --ha-dialog-border-radius: 18px;
     --mdc-dialog-container-shape: 18px;
   }
+  /* a roomier default: at least 500px tall, body flexes so actions stay pinned low */
   .gate {
+    display: flex;
+    flex-direction: column;
+    min-height: 500px;
     border-radius: 18px;
     overflow: hidden;
     animation: det-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -1027,6 +1040,7 @@ export const styles = css`
   }
 
   .gate-body {
+    flex: 1 1 auto;
     padding: 8px 20px 6px;
     display: flex;
     flex-direction: column;
