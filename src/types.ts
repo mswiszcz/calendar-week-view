@@ -76,11 +76,14 @@ export interface CardConfig {
   updateInterval?: number;
   compact?: boolean;
   noCardBackground?: boolean;
+  noDayBackground?: boolean;
   locale?: string;
   timeFormat?: string;
   /** Day-header templates: literal text plus `{luxonToken}` groups (e.g. `Day {d}`). */
   headerSuptext?: string;
   headerText?: string;
+  /** Show the day-header main line (`headerText`); the suptext line stays regardless. */
+  showHeaderText?: boolean;
   showClock?: boolean;
   showNextEvent?: boolean;
   clockFormat?: string;
