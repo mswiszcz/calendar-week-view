@@ -943,23 +943,24 @@ export const styles = css`
     --ha-dialog-border-radius: 18px;
     --mdc-dialog-container-shape: 18px;
   }
-  /* a roomier default: at least 500px tall, body flexes so actions stay pinned low */
+  /* The popup materializes — fade, a slight scale-up, and a blur that resolves —
+     so opening an event feels like a gate board coming into focus. Scale-UP (not a
+     downward translate) keeps it from briefly overflowing the dialog into a scrollbar. */
   .gate {
-    display: flex;
-    flex-direction: column;
-    min-height: 500px;
     border-radius: 18px;
     overflow: hidden;
-    animation: det-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: gate-in 0.44s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
-  @keyframes det-in {
+  @keyframes gate-in {
     from {
       opacity: 0;
-      transform: translateY(6px);
+      transform: scale(0.965);
+      filter: blur(7px);
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .gate {
+    .gate,
+    .gate-prog i {
       animation: none;
     }
   }
@@ -1037,10 +1038,16 @@ export const styles = css`
     height: 100%;
     border-radius: 999px;
     background: #fff;
+    /* the bar sweeps up to the elapsed fraction as the popup lands — time, filling in */
+    animation: gate-fill 0.75s 0.14s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes gate-fill {
+    from {
+      width: 0;
+    }
   }
 
   .gate-body {
-    flex: 1 1 auto;
     padding: 8px 20px 6px;
     display: flex;
     flex-direction: column;
