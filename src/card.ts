@@ -73,6 +73,7 @@ export class CalendarWeekViewCard extends LitElement {
   private _anim?: number;
   private _animSafety?: number;
   private _animTarget = 0;
+  private _pageIndex?: number;
   private _timer?: number;
   private _weatherUnsub?: () => void;
   private _weatherPending = false;
@@ -342,6 +343,7 @@ export class CalendarWeekViewCard extends LitElement {
     if (this._animSafety) window.clearTimeout(this._animSafety);
     this._anim = undefined;
     this._animSafety = undefined;
+    this._pageIndex = undefined;
     const s = this._strip();
     if (s && target != null) s.scrollLeft = target;
     this._updateTodayVisibility();
@@ -382,16 +384,28 @@ export class CalendarWeekViewCard extends LitElement {
     this._anim = window.requestAnimationFrame(step);
   }
 
-  /** Page the strip by one viewport; already-rendered buffer days scroll into view. */
+  /**
+   * Page the strip by one viewport, landing on a whole day column. Paging is
+   * tracked by column index rather than absolute pixels: a click mid-animation
+   * advances from the pending target column (so rapid clicks step predictably),
+   * and index targets survive the window recenter — which is deferred until the
+   * animation settles (see `_afterScroll`) so it can never fight the motion.
+   */
   private _carousel(dir: 1 | -1): void {
     const strip = this._strip();
-    if (!strip) return;
-    const base = this._anim != null ? this._animTarget : strip.scrollLeft;
-    this._animateTo(strip, base + dir * strip.clientWidth);
+    if (!strip || this._columns.length === 0) return;
+    const step = Math.max(1, Math.round(this._config.visibleDays ?? 3));
+    const base = this._anim != null && this._pageIndex != null ? this._pageIndex : this._leftmostIndex(strip);
+    const target = Math.max(0, Math.min(this._columns.length - 1, base + dir * step));
+    this._pageIndex = target;
+    this._animateTo(strip, this._childLeft(strip, target));
   }
 
   /** Jump to today: scroll it to the left edge if loaded, otherwise recenter the window on it. */
   private _goToday(): void {
+    // Stop any in-flight paging first: its stale pixel target would otherwise drag
+    // the strip back off today (the far branch never calls _animateTo to retarget it).
+    this._endAnim();
     const strip = this._strip();
     const idx = this._columns.findIndex((c) => c.isToday);
     if (strip && idx >= 0) {
@@ -418,7 +432,7 @@ export class CalendarWeekViewCard extends LitElement {
 
   private async _afterScroll(): Promise<void> {
     const strip = this._strip();
-    if (!strip || this._columns.length === 0 || this._loading || this._jumping) return;
+    if (!strip || this._columns.length === 0 || this._loading || this._jumping || this._anim != null) return;
     this._updateTodayVisibility();
     const idx = this._leftmostIndex(strip);
     const count = dayCountFor(this._config.hideWeekend ?? false);
@@ -439,6 +453,9 @@ export class CalendarWeekViewCard extends LitElement {
     const after = this._strip();
     const i = this._columns.findIndex((c) => c.date.toISODate() === anchorDate);
     if (after && i >= 0) after.scrollLeft = this._childLeft(after, i) - viewportX;
+    // A click during the refetch may have started a page toward a now-stale
+    // pixel target; the re-pin above is authoritative, so drop that animation.
+    if (this._anim != null) this._endAnim();
   }
 
   private _toggleCalendar(entity: string): void {
@@ -585,18 +602,22 @@ export class CalendarWeekViewCard extends LitElement {
     `;
   }
 
-  /** Top-left status cluster: return-to-today button, live clock, date, and the next event. */
+  /** Top-left status cluster: live clock, date, and a row of return button + next event. */
   private _renderStatus() {
     const cfg = this._config;
     if (cfg.showClock === false) return html``;
     const now = this._now();
+    const showReturn = cfg.showNavigation !== false && !this._todayVisible;
+    const row =
+      showReturn || this._upcoming
+        ? html`<div class="statusrow">${this._renderReturn()}${this._renderUpcoming(now)}</div>`
+        : '';
     return html`
       <div class="status">
-        ${this._renderReturn()}
         <div class="clock">${this._fmt(now, cfg.clockFormat ?? 'HH:mm')}</div>
         <div class="statusmeta">
           <div class="sdate">${this._fmt(now, cfg.headerDateFormat ?? 'cccc, d LLLL')}</div>
-          ${this._renderUpcoming(now)}
+          ${row}
         </div>
       </div>
     `;

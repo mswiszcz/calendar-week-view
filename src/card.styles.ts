@@ -91,7 +91,7 @@ export const styles = css`
     --mdc-icon-size: 26px;
   }
 
-  /* nav */
+  /* topbar — status cluster on the left, calendar legend on the right */
   .topbar {
     display: flex;
     align-items: center;
@@ -124,6 +124,13 @@ export const styles = css`
     gap: 6px;
     min-width: 0;
   }
+  .statusrow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+  }
   .sdate {
     font-size: 13px;
     font-weight: 600;
@@ -135,7 +142,6 @@ export const styles = css`
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    align-self: flex-start;
     max-width: 100%;
     font: inherit;
     cursor: pointer;
@@ -178,8 +184,8 @@ export const styles = css`
   /* return-to-today — filled accent, shown only when today has scrolled off-screen */
   .return-btn {
     flex: none;
-    width: 40px;
-    height: 40px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     border: none;
     cursor: pointer;
@@ -195,14 +201,14 @@ export const styles = css`
     animation: return-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
   .return-btn:hover {
-    transform: translateY(-2px) scale(1.05);
+    transform: translateY(-1px) scale(1.06);
     filter: brightness(1.05);
   }
   .return-btn:active {
-    transform: translateY(0) scale(0.97);
+    transform: translateY(0) scale(0.96);
   }
   .return-btn ha-icon {
-    --mdc-icon-size: 22px;
+    --mdc-icon-size: 19px;
   }
   @keyframes return-in {
     from {
@@ -245,16 +251,16 @@ export const styles = css`
     opacity: 0.45;
   }
 
-  /* carousel — arrows float over the strip's edges; the strip fills the width */
+  /* carousel — a side gutter holds the arrows inside the card, each half over
+     the edge day column and half over the gutter (never past the card edge). */
   .carousel {
     position: relative;
     flex: 1;
     min-height: 0;
     display: flex;
     align-items: stretch;
+    padding: 0 22px;
   }
-  /* Each arrow is centered on a strip edge, so half overlaps the edge day column
-     and half floats over the card gutter. */
   .car-arrow {
     position: absolute;
     top: 50%;
@@ -275,28 +281,24 @@ export const styles = css`
       border-color 0.15s ease;
   }
   .car-arrow.left {
-    left: 0;
-    transform: translate(-50%, -50%);
+    left: 2px;
+    transform: translateY(-50%);
   }
   .car-arrow.right {
-    right: 0;
-    transform: translate(50%, -50%);
+    right: 2px;
+    transform: translateY(-50%);
   }
   .car-arrow:hover {
     background: var(--hover-tint);
     border-color: color-mix(in srgb, var(--primary-color) 40%, var(--divider-color));
   }
-  .car-arrow.left:hover {
-    transform: translate(-50%, -50%) scale(1.07);
-  }
+  .car-arrow.left:hover,
   .car-arrow.right:hover {
-    transform: translate(50%, -50%) scale(1.07);
+    transform: translateY(-50%) scale(1.07);
   }
-  .car-arrow.left:active {
-    transform: translate(-50%, -50%) scale(0.97);
-  }
+  .car-arrow.left:active,
   .car-arrow.right:active {
-    transform: translate(50%, -50%) scale(0.97);
+    transform: translateY(-50%) scale(0.97);
   }
   .car-arrow ha-icon {
     --mdc-icon-size: 22px;
