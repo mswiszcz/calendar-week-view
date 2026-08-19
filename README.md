@@ -3,8 +3,8 @@
 A Home Assistant Lovelace card that renders the **current week** as a horizontal
 strip of day-columns: a highlighted **today**, per-event **start–end times** and
 **hourly weather**, all-day / multi-day pills with continuation chevrons, a
-calendar legend, prev/next/this-week navigation, and a floating **quick-add**
-button.
+calendar legend, a **Today** jump button, floating carousel arrows, and a
+floating **quick-add** button.
 
 ![Light](docs/superpowers/specs/assets/comp-light.png)
 ![Dark](docs/superpowers/specs/assets/comp-dark.png)
@@ -76,7 +76,7 @@ calendars:
 | `visibleDays` | number | `3` | Columns visible at once; the strip scrolls to reveal the rest. |
 | `hideWeekend` | boolean | `false` | Show Monday–Friday only (5 columns). |
 | `height` | string | `520px` | **Minimum** height. The card fills its container (full height in a panel view) and never shrinks below this. |
-| `showNavigation` | boolean | `true` | Show the week controls and the carousel day arrows. The strip pages by one view and rolls into adjacent weeks; swipe still works. |
+| `showNavigation` | boolean | `true` | Show the **Today** button and the floating carousel day arrows. The strip pages by one view and rolls into adjacent weeks; swipe still works. |
 | `showLegend` | boolean | `true` | Show the calendar legend chips. |
 | `legendToggle` | boolean | `true` | Click a legend chip to hide/show that calendar's events. |
 | `addEvents` | boolean | `false` | Show the floating quick-add button (needs ≥1 writable calendar). |
@@ -88,7 +88,9 @@ calendars:
 | `compact` | boolean | `false` | Tighter padding and shorter columns. |
 | `noCardBackground` | boolean | `false` | Render without the card background and shadow. |
 | `timeFormat` | string | `HH:mm` | [Luxon](https://moment.github.io/luxon/#/formatting) token for event times. |
-| `texts` | object | — | String overrides. Currently: `noEvents` (empty-day text). |
+| `dateFormat` | string | `yyyy · LLLL · cccc` | [Luxon](https://moment.github.io/luxon/#/formatting) token for the meta line above each day number (e.g. `2026 · August · Saturday`). |
+| `locale` | string | browser | BCP-47 locale (e.g. `en`, `de`, `fr`) applied to formatted dates and times. |
+| `texts` | object | — | String overrides. Currently: `noEvents` (empty-day text), `today` (Today button label). |
 
 ### Calendar options
 
@@ -124,7 +126,7 @@ Assistant theme when unset. Accepts any CSS color (hex, named, or `var(--token)`
 
 ```yaml
 colors:
-  accent: '#0aa2e6'        # today accent, quick-add button, this-week button
+  accent: '#0aa2e6'        # today accent, quick-add button, Today button
   today: '#e8f4fd'         # today column background
   dayBackground: '#f5f5f7' # day column + legend chip background
   cardBackground: '#ffffff'
@@ -134,7 +136,7 @@ colors:
 
 | Key | Overrides |
 |---|---|
-| `accent` | Today accent, quick-add FAB, this-week button, nav hover. |
+| `accent` | Today accent, quick-add FAB, Today button, arrow hover. |
 | `today` | Today column background tint. |
 | `dayBackground` | Day column and legend chip background. |
 | `cardBackground` | Card and pill background base. |
@@ -152,7 +154,7 @@ calendar. Use the floating **+** button (enable `addEvents`) to create events.
 ### Reserved (not yet implemented)
 
 These keys are accepted by the config schema but currently have no effect:
-`locale`, `dateFormat`, and per-calendar `filterText` / `icon`.
+per-calendar `filterText` / `icon`.
 
 ## Development
 

@@ -27,6 +27,8 @@ const ADVANCED_SCHEMA = [
     selector: { number: { min: 10, max: 3600, mode: 'box', unit_of_measurement: 's' } },
   },
   { name: 'timeFormat', selector: { text: {} } },
+  { name: 'dateFormat', selector: { text: {} } },
+  { name: 'locale', selector: { text: {} } },
 ];
 
 const LABELS: Record<string, string> = {
@@ -44,6 +46,8 @@ const LABELS: Record<string, string> = {
   combineSimilarEvents: 'Combine duplicate events',
   updateInterval: 'Update interval',
   timeFormat: 'Time format',
+  dateFormat: 'Date format (day header)',
+  locale: 'Locale (e.g. en, de, fr)',
 };
 
 const COLOR_FIELDS: { key: keyof UiColors; label: string }[] = [
