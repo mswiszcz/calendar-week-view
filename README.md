@@ -165,6 +165,18 @@ pnpm build       # esbuild → dist/calendar-week-view.js
 pnpm watch       # rebuild on change
 ```
 
+### Releasing
+
+Bump `version` in `package.json`, commit on a feature branch, then:
+
+```bash
+make push        # verify → push branch → PR → merge to main → tag vX.Y.Z → push tag
+```
+
+Pushing the tag triggers `release.yml`, which builds and attaches
+`dist/calendar-week-view.js` to the GitHub release. `make verify` runs the
+test / typecheck / lint / build gate on its own.
+
 Pure, timezone- and now-injected logic lives in `src/week.ts` and
 `src/weather.ts` (unit-tested); `src/card.ts` is the Lit shell that does all
 `hass` I/O and rendering.
