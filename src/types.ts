@@ -52,7 +52,6 @@ export interface CardConfig {
   showLegend?: boolean;
   legendToggle?: boolean;
   addEvents?: boolean;
-  addEventCalendars?: string[];
   weather?: WeatherConfig;
   colors?: UiColors;
   combineSimilarEvents?: boolean;

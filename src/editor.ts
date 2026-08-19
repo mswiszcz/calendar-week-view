@@ -3,6 +3,7 @@ import { property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { CalendarConfig, CardConfig, UiColors, WeatherConfig } from '@/types';
 
+/** Fields shared by both view modes. */
 const GENERAL_SCHEMA = [
   { name: 'title', selector: { text: {} } },
   {
@@ -13,13 +14,7 @@ const GENERAL_SCHEMA = [
     name: 'viewMode',
     selector: { select: { options: ['agenda', 'calendar'], mode: 'dropdown' } },
   },
-  {
-    name: 'orientation',
-    selector: { select: { options: ['horizontal', 'vertical'], mode: 'dropdown' } },
-  },
-  { name: 'startHour', selector: { number: { min: 0, max: 23, mode: 'box' } } },
   { name: 'visibleDays', selector: { number: { min: 1, max: 7, mode: 'box' } } },
-  { name: 'height', selector: { text: {} } },
   { name: 'hideWeekend', selector: { boolean: {} } },
   { name: 'lockToday', selector: { boolean: {} } },
   { name: 'highlightToday', selector: { boolean: {} } },
@@ -31,16 +26,27 @@ const GENERAL_SCHEMA = [
   { name: 'addEvents', selector: { boolean: {} } },
 ];
 
+/** Fields that only affect agenda view. */
+const AGENDA_SCHEMA = [
+  {
+    name: 'orientation',
+    selector: { select: { options: ['horizontal', 'vertical'], mode: 'dropdown' } },
+  },
+  { name: 'dateFormat', selector: { text: {} } },
+];
+
+/** Fields that only affect calendar view. */
+const CALENDAR_SCHEMA = [{ name: 'startHour', selector: { number: { min: 0, max: 23, mode: 'box' } } }];
+
 const ADVANCED_SCHEMA = [
   { name: 'compact', selector: { boolean: {} } },
-  { name: 'noCardBackground', selector: { boolean: {} } },
+  { name: 'height', selector: { text: {} } },
   { name: 'combineSimilarEvents', selector: { boolean: {} } },
   {
     name: 'updateInterval',
     selector: { number: { min: 10, max: 3600, mode: 'box', unit_of_measurement: 's' } },
   },
   { name: 'timeFormat', selector: { text: {} } },
-  { name: 'dateFormat', selector: { text: {} } },
   { name: 'clockFormat', selector: { text: {} } },
   { name: 'headerDateFormat', selector: { text: {} } },
   { name: 'locale', selector: { text: {} } },
@@ -50,10 +56,10 @@ const LABELS: Record<string, string> = {
   title: 'Title',
   weekStartsOn: 'Week starts on',
   viewMode: 'View mode',
-  orientation: 'Layout orientation (agenda)',
-  startHour: 'Start hour (calendar view)',
+  orientation: 'Layout orientation',
+  startHour: 'Start hour',
   visibleDays: 'Visible days',
-  height: 'Minimum height (e.g. 520px)',
+  height: 'Minimum height',
   hideWeekend: 'Hide weekend',
   lockToday: 'Lock to today (no navigation)',
   highlightToday: 'Highlight today background',
@@ -64,21 +70,56 @@ const LABELS: Record<string, string> = {
   showNextEvent: 'Show next event',
   addEvents: 'Enable quick-add button',
   compact: 'Compact',
-  noCardBackground: 'No card background',
   combineSimilarEvents: 'Combine duplicate events',
   updateInterval: 'Update interval',
   timeFormat: 'Time format',
-  dateFormat: 'Date format (day header)',
-  clockFormat: 'Clock format (e.g. HH:mm)',
+  dateFormat: 'Date format',
+  clockFormat: 'Clock format',
   headerDateFormat: 'Header date format',
-  locale: 'Locale (e.g. en, de, fr)',
+  locale: 'Locale',
+};
+
+/** Helper text shown under specific fields to explain what they do. */
+const HELPERS: Record<string, string> = {
+  compact: 'Tighter padding and shorter rows to fit more in less vertical space.',
+  height: 'The card never shrinks below this but still grows to fill its container, e.g. 520px.',
+  timeFormat: 'Luxon tokens for event start/end times, e.g. HH:mm or h:mm a.',
+  dateFormat: 'Luxon tokens for the meta line above each day number, e.g. yyyy · LLLL · cccc.',
+  clockFormat: 'Luxon tokens for the header clock; add ss (e.g. HH:mm:ss) to tick every second.',
+  headerDateFormat: 'Luxon tokens for the date beside the clock, e.g. cccc, d LLLL.',
+  locale: 'BCP-47 locale applied to formatted dates and times, e.g. en, de, fr.',
+};
+
+/**
+ * Effective card defaults, so editor controls reflect real behavior on a fresh
+ * card (e.g. the next event shows by default, so its toggle must read as on).
+ * Keys equal to their default are stripped from the saved config on change.
+ */
+const DEFAULTS: Partial<CardConfig> = {
+  weekStartsOn: 'monday',
+  viewMode: 'agenda',
+  orientation: 'horizontal',
+  visibleDays: 3,
+  startHour: 8,
+  updateInterval: 60,
+  hideWeekend: false,
+  lockToday: false,
+  highlightToday: true,
+  showNavigation: true,
+  showLegend: true,
+  legendToggle: true,
+  showClock: true,
+  showNextEvent: true,
+  addEvents: false,
+  compact: false,
+  combineSimilarEvents: false,
 };
 
 const COLOR_FIELDS: { key: keyof UiColors; label: string }[] = [
   { key: 'accent', label: 'Accent (today, buttons)' },
   { key: 'today', label: 'Today column' },
   { key: 'dayBackground', label: 'Day background' },
-  { key: 'cardBackground', label: 'Card background' },
+  { key: 'cardBackground', label: 'Card background color' },
   { key: 'text', label: 'Primary text' },
   { key: 'secondaryText', label: 'Secondary text' },
 ];
@@ -182,11 +223,6 @@ export class CalendarWeekViewEditor extends LitElement {
       font-size: 12.5px;
       color: var(--secondary-text-color);
     }
-    .checks {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
   `;
 
   @property({ attribute: false }) hass!: HomeAssistant;
@@ -199,16 +235,23 @@ export class CalendarWeekViewEditor extends LitElement {
   render() {
     if (!this._config) return html``;
     const calendars = this._config.calendars ?? [];
+    const data = { ...DEFAULTS, ...this._config };
     return html`
       <ha-expansion-panel outlined .header=${'General'} expanded>
+        <div class="section">${this._form(data, GENERAL_SCHEMA)}</div>
+      </ha-expansion-panel>
+
+      <ha-expansion-panel outlined .header=${'Agenda view'}>
         <div class="section">
-          <ha-form
-            .hass=${this.hass}
-            .data=${this._config}
-            .schema=${GENERAL_SCHEMA}
-            .computeLabel=${(s: { name: string }) => LABELS[s.name] ?? s.name}
-            @value-changed=${this._generalChanged}
-          ></ha-form>
+          <div class="hint">Applies when View mode is Agenda.</div>
+          ${this._form(data, AGENDA_SCHEMA)}
+        </div>
+      </ha-expansion-panel>
+
+      <ha-expansion-panel outlined .header=${'Calendar view'}>
+        <div class="section">
+          <div class="hint">Applies when View mode is Calendar.</div>
+          ${this._form(data, CALENDAR_SCHEMA)}
         </div>
       </ha-expansion-panel>
 
@@ -223,28 +266,35 @@ export class CalendarWeekViewEditor extends LitElement {
         <div class="section">${this._renderWeather()}</div>
       </ha-expansion-panel>
 
-      <ha-expansion-panel outlined .header=${'Quick-add calendars'}>
-        <div class="section">${this._renderQuickAdd()}</div>
-      </ha-expansion-panel>
-
-      <ha-expansion-panel outlined .header=${'Colors'}>
+      <ha-expansion-panel outlined .header=${'Styling'}>
         <div class="section">
-          <div class="hint">Leave blank to follow the Home Assistant theme.</div>
+          <ha-formfield label="Card background">
+            <ha-switch
+              .checked=${this._config.noCardBackground !== true}
+              @change=${this._toggleCardBackground}
+            ></ha-switch>
+          </ha-formfield>
+          <div class="hint">Leave colors blank to follow the Home Assistant theme.</div>
           ${COLOR_FIELDS.map((f) => this._renderColorRow(f.key, f.label))}
         </div>
       </ha-expansion-panel>
 
       <ha-expansion-panel outlined .header=${'Advanced'}>
-        <div class="section">
-          <ha-form
-            .hass=${this.hass}
-            .data=${this._config}
-            .schema=${ADVANCED_SCHEMA}
-            .computeLabel=${(s: { name: string }) => LABELS[s.name] ?? s.name}
-            @value-changed=${this._generalChanged}
-          ></ha-form>
-        </div>
+        <div class="section">${this._form(data, ADVANCED_SCHEMA)}</div>
       </ha-expansion-panel>
+    `;
+  }
+
+  private _form(data: CardConfig, schema: unknown) {
+    return html`
+      <ha-form
+        .hass=${this.hass}
+        .data=${data}
+        .schema=${schema}
+        .computeLabel=${(s: { name: string }) => LABELS[s.name] ?? s.name}
+        .computeHelper=${(s: { name: string }) => HELPERS[s.name] ?? ''}
+        @value-changed=${this._generalChanged}
+      ></ha-form>
     `;
   }
 
@@ -327,28 +377,6 @@ export class CalendarWeekViewEditor extends LitElement {
     `;
   }
 
-  private _renderQuickAdd() {
-    const calendars = this._config.calendars ?? [];
-    if (calendars.length === 0) return html`<div class="hint">Add a calendar first.</div>`;
-    const allow = this._config.addEventCalendars;
-    return html`
-      <div class="hint">Which calendars the quick-add dialog may write to (all by default).</div>
-      <div class="checks">
-        ${calendars.map((c) => {
-          const on = !allow || allow.includes(c.entity);
-          return html`
-            <ha-formfield label=${c.name || c.entity}>
-              <ha-switch
-                .checked=${on}
-                @change=${(e: Event) => this._toggleQuickAdd(c.entity, (e.target as HTMLInputElement).checked)}
-              ></ha-switch>
-            </ha-formfield>
-          `;
-        })}
-      </div>
-    `;
-  }
-
   private _renderColorRow(key: keyof UiColors, label: string) {
     const value = this._config.colors?.[key] ?? '';
     return html`
@@ -382,7 +410,23 @@ export class CalendarWeekViewEditor extends LitElement {
   }
 
   private _generalChanged(ev: CustomEvent): void {
-    this._emit({ ...this._config, ...ev.detail.value });
+    this._emit(this._normalize({ ...this._config, ...ev.detail.value }));
+  }
+
+  /** Drop keys whose value equals the effective default, keeping the saved config minimal. */
+  private _normalize(config: CardConfig): CardConfig {
+    const next = { ...config };
+    for (const [key, value] of Object.entries(DEFAULTS)) {
+      if (next[key as keyof CardConfig] === value) delete next[key as keyof CardConfig];
+    }
+    return next;
+  }
+
+  private _toggleCardBackground(e: Event): void {
+    const config = { ...this._config };
+    if ((e.target as HTMLInputElement).checked) delete config.noCardBackground;
+    else config.noCardBackground = true;
+    this._emit(config);
   }
 
   private _addCalendar(): void {
@@ -411,18 +455,6 @@ export class CalendarWeekViewEditor extends LitElement {
   private _weatherChanged(patch: Partial<WeatherConfig>): void {
     if (!this._config.weather) return;
     this._emit({ ...this._config, weather: { ...this._config.weather, ...patch } });
-  }
-
-  private _toggleQuickAdd(entity: string, on: boolean): void {
-    const entities = (this._config.calendars ?? []).map((c) => c.entity);
-    const current = this._config.addEventCalendars ?? entities;
-    const next = on ? [...new Set([...current, entity])] : current.filter((e) => e !== entity);
-    // All selected → drop the key so new calendars are writable by default.
-    const allSelected = entities.every((e) => next.includes(e));
-    const config = { ...this._config };
-    if (allSelected) delete config.addEventCalendars;
-    else config.addEventCalendars = next;
-    this._emit(config);
   }
 
   private _colorChanged(key: keyof UiColors, value: string): void {

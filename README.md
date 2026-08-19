@@ -88,8 +88,7 @@ calendars:
 | `legendToggle` | boolean | `true` | Click a legend chip to hide/show that calendar's events. |
 | `showClock` | boolean | `true` | Show the live clock and date in the status header. |
 | `showNextEvent` | boolean | `true` | Show the next upcoming event with a live countdown in the status header. |
-| `addEvents` | boolean | `false` | Show the floating quick-add button (needs ≥1 writable calendar). |
-| `addEventCalendars` | list of entity ids | all writable | Restrict the add dialog's calendar picker. |
+| `addEvents` | boolean | `false` | Show the floating quick-add button (needs ≥1 writable calendar). It writes to all writable configured calendars. |
 | `weather` | object | — | Optional hourly weather. See [Weather options](#weather-options). |
 | `colors` | object | — | Override UI colors. See [Color options](#color-options). |
 | `combineSimilarEvents` | boolean | `false` | Merge identical events that appear in more than one calendar. |

@@ -309,13 +309,9 @@ export class CalendarWeekViewCard extends LitElement {
     }
   }
 
-  /** Configured calendars that support event creation, honoring the allowlist. */
+  /** Configured calendars that support event creation. */
   private _writableCalendars(): CalendarConfig[] {
-    const allow = this._config.addEventCalendars;
-    return this._config.calendars.filter((c) => {
-      const writable = supportsFeature(this._hass?.states[c.entity], CalendarFeature.CREATE);
-      return writable && (!allow || allow.includes(c.entity));
-    });
+    return this._config.calendars.filter((c) => supportsFeature(this._hass?.states[c.entity], CalendarFeature.CREATE));
   }
 
   private _canMutate(e: WeekEvent, bit: number): boolean {
@@ -635,7 +631,9 @@ export class CalendarWeekViewCard extends LitElement {
     const calendar = this._isCalendar();
     const expanded = calendar && this._expanded;
     const hasAllDay = calendar && this._columns.some((c) => c.allDayEvents.length > 0);
-    const stacks = expanded ? this._columns.map((c) => stackDayEvents(c.timedEvents, (MIN_EVENT_H / HOUR_H) * 60)) : null;
+    const stacks = expanded
+      ? this._columns.map((c) => stackDayEvents(c.timedEvents, (MIN_EVENT_H / HOUR_H) * 60))
+      : null;
     const gridMin = stacks ? Math.max(1440, ...stacks.flatMap((s) => s.map((x) => x.topMin + x.heightMin))) : 1440;
     const styleParts = [
       `--cwv-visible:${cfg.visibleDays ?? 3}`,
