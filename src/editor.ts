@@ -42,10 +42,11 @@ const AGENDA_SCHEMA = [
   },
 ];
 
-/** Day-header templates, shared by both views. */
+/** Day-header templates and toggles, shared by both views. */
 const HEADER_SCHEMA = [
   { name: 'headerSuptext', selector: { text: {} } },
   { name: 'headerText', selector: { text: {} } },
+  { name: 'showHeaderText', selector: { boolean: {} } },
 ];
 
 /** Fields that only affect calendar view. */
@@ -100,6 +101,7 @@ const LABELS: Record<string, string> = {
   timeFormat: 'Time format',
   headerSuptext: 'Header suptext',
   headerText: 'Header text',
+  showHeaderText: 'Show header text',
   clockFormat: 'Clock format',
   headerDateFormat: 'Header date format',
   locale: 'Locale',
@@ -119,6 +121,7 @@ const HELPERS: Record<string, string> = {
   headerSuptext:
     'Small line above the day number. Literal text plus {luxonToken} groups, e.g. Week {W} or {cccc}. Default {yyyy · LLLL · cccc} (agenda) / {ccc} (calendar).',
   headerText: 'The day number line. Literal text plus {luxonToken} groups, e.g. {d} or Day {d}. Default {d}.',
+  showHeaderText: 'Show the main day-header line (the header text above). The suptext line always shows.',
   clockFormat: 'Luxon tokens for the header clock; add ss (e.g. HH:mm:ss) to tick every second.',
   headerDateFormat: 'Luxon tokens for the date beside the clock, e.g. cccc, d LLLL.',
   locale: 'BCP-47 locale applied to formatted dates and times, e.g. en, de, fr.',
@@ -149,6 +152,7 @@ const DEFAULTS: Partial<CardConfig> = {
   addEvents: false,
   compact: false,
   combineSimilarEvents: false,
+  showHeaderText: true,
 };
 
 const COLOR_FIELDS: { key: keyof UiColors; label: string }[] = [
@@ -321,17 +325,25 @@ export class CalendarWeekViewEditor extends LitElement {
 
       <ha-expansion-panel outlined .header=${'Styling'}>
         <div class="section">
+          <div class="toggles">
+            <ha-formfield label="Card background">
+              <ha-switch
+                .checked=${this._config.noCardBackground !== true}
+                @change=${this._toggleCardBackground}
+              ></ha-switch>
+            </ha-formfield>
+            <ha-formfield label="Day background">
+              <ha-switch
+                .checked=${this._config.noDayBackground !== true}
+                @change=${this._toggleDayBackground}
+              ></ha-switch>
+            </ha-formfield>
+          </div>
           <div class="subhead">Day header</div>
           <div class="hint">
             Text above and on the day-number line, in both views. Literal text plus {luxonToken} groups.
           </div>
           ${this._form(data, HEADER_SCHEMA)}
-          <ha-formfield label="Card background">
-            <ha-switch
-              .checked=${this._config.noCardBackground !== true}
-              @change=${this._toggleCardBackground}
-            ></ha-switch>
-          </ha-formfield>
           <div class="subhead">Today</div>
           <div class="hint">Turn today's accent background, border, and text on or off.</div>
           ${this._form(data, TODAY_SCHEMA)}
@@ -530,6 +542,13 @@ export class CalendarWeekViewEditor extends LitElement {
     const config = { ...this._config };
     if ((e.target as HTMLInputElement).checked) delete config.noCardBackground;
     else config.noCardBackground = true;
+    this._emit(config);
+  }
+
+  private _toggleDayBackground(e: Event): void {
+    const config = { ...this._config };
+    if ((e.target as HTMLInputElement).checked) delete config.noDayBackground;
+    else config.noDayBackground = true;
     this._emit(config);
   }
 

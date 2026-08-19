@@ -704,6 +704,7 @@ export class CalendarWeekViewCard extends LitElement {
       <ha-card
         class=${classMap({
           nobackground: !!cfg.noCardBackground,
+          nodaybackground: !!cfg.noDayBackground,
           compact: !!cfg.compact,
           nohighlight: cfg.highlightToday === false,
           notodayborder: cfg.todayBorder === false,
@@ -934,13 +935,14 @@ export class CalendarWeekViewCard extends LitElement {
       ? html`<div class="allday">${col.allDayEvents.map((e) => this._renderPill(e))}</div>`
       : '';
     const head = this._dayHeader(col.date, calendar);
+    const showText = this._config.showHeaderText !== false;
     if (calendar) {
       return html`
         <div class=${classMap({ day: true, cal: true, today: col.isToday, past: col.isPast })}>
           <div class="cal-head">
             <div class="cal-dayhead">
               <span class="cd-name">${head.sup}</span>
-              <span class="cd-num">${head.num}</span>
+              ${showText ? html`<span class="cd-num">${head.num}</span>` : ''}
             </div>
             ${allday}
           </div>
@@ -953,7 +955,7 @@ export class CalendarWeekViewCard extends LitElement {
         <div class="day-head">
           <div class="dstack">
             <span class="dmeta">${head.sup}</span>
-            <span class="dnum">${head.num}</span>
+            ${showText ? html`<span class="dnum">${head.num}</span>` : ''}
           </div>
         </div>
         ${allday}

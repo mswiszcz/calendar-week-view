@@ -97,11 +97,13 @@ calendars:
 | `colors` | object | — | Override UI colors. See [Color options](#color-options). |
 | `combineSimilarEvents` | boolean | `false` | Merge identical events that appear in more than one calendar. |
 | `updateInterval` | number | `60` | Seconds between background re-fetches. |
-| `compact` | boolean | `false` | Tighter layout: a shorter clock and lower min-height, plus (in the vertical agenda) a halved header gap and an edge-to-edge day list. |
+| `compact` | boolean | `false` | Tighter layout: a shorter clock and lower min-height, plus (in the vertical agenda) a halved header gap and an edge-to-edge day list with squared today corners. |
 | `noCardBackground` | boolean | `false` | Render without the card background and shadow. |
+| `noDayBackground` | boolean | `false` | Render the day tiles with no fill at all (agenda view). |
 | `timeFormat` | string | `HH:mm` | [Luxon](https://moment.github.io/luxon/#/formatting) token for event times. |
 | `headerSuptext` | string | `{yyyy · LLLL · cccc}` agenda / `{ccc}` calendar | Small line above the day number, in both views. Literal text plus `{`[Luxon](https://moment.github.io/luxon/#/formatting)` token}` groups (e.g. `Week {W}` → `Week 34`). |
 | `headerText` | string | `{d}` | The day-number line, in both views. Same `{token}` templating (e.g. `Day {d}` → `Day 19`). |
+| `showHeaderText` | boolean | `true` | Show the day-header main line (`headerText`). Off keeps only the suptext line above it. |
 | `clockFormat` | string | `HH:mm` | [Luxon](https://moment.github.io/luxon/#/formatting) token for the header clock. Include seconds (e.g. `HH:mm:ss`) to make it tick every second. |
 | `headerDateFormat` | string | `cccc, d LLLL` | [Luxon](https://moment.github.io/luxon/#/formatting) token for the date beside the clock (e.g. `Wednesday, 19 August`). |
 | `locale` | string | browser | BCP-47 locale (e.g. `en`, `de`, `fr`) applied to formatted dates and times. |
