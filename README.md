@@ -172,7 +172,10 @@ colors:
 ## Layout & views
 
 - **View mode** (`viewMode`): `agenda` lists each day's events; `calendar` spans timed
-  events over an hour grid that scrolls to `startHour` and shows a live now-line.
+  events over an hour grid that scrolls to `startHour` and shows a live now-line. The grid
+  is a bounded viewport — day heads and the all-day row stay pinned while the hours scroll —
+  and an expand control in the header grows the card to show the whole day at once (the
+  dashboard scrolls), collapsing back to the scrolling viewport.
 - **Orientation** (`orientation`, agenda only): `horizontal` is the scrolling day strip;
   `vertical` stacks `visibleDays` days from today full-width, each at the full height its
   events need with no inner scroll, and grows the card to fit the list — the dashboard
