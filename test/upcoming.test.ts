@@ -146,6 +146,11 @@ describe('eventStatus', () => {
     expect(s.phase).toBe('ended');
     expect(s.headline).toBe('Yesterday');
   });
+
+  test('when a multi-day timed event labels it multi-day', () => {
+    const s = eventStatus(now, ev('x', '2026-08-19T22:00:00', '2026-08-21T02:00:00'));
+    expect(s.detail).toBe('multi-day event');
+  });
 });
 
 describe('formatEventDuration', () => {

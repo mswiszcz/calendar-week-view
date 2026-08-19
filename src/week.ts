@@ -310,25 +310,16 @@ export function eventStatus(now: DateTime, ev: WeekEvent): EventStatus {
     const startDay = ev.originalStart.startOf('day');
     const endDay = ev.originalEnd.startOf('day');
     const today = now.startOf('day');
+    const detail = ev.allDay ? 'all-day event' : 'multi-day event';
     if (today >= startDay && today < endDay) {
-      return { phase: 'now', headline: 'Today', detail: 'all-day event', progress: null };
+      return { phase: 'now', headline: 'Today', detail, progress: null };
     }
     const days = Math.round(startDay.diff(today, 'days').days);
     if (days > 0) {
-      return {
-        phase: 'upcoming',
-        headline: days === 1 ? 'Tomorrow' : `In ${days}d`,
-        detail: 'all-day event',
-        progress: null,
-      };
+      return { phase: 'upcoming', headline: days === 1 ? 'Tomorrow' : `In ${days}d`, detail, progress: null };
     }
     const ago = Math.abs(days);
-    return {
-      phase: 'ended',
-      headline: ago === 1 ? 'Yesterday' : `${ago}d ago`,
-      detail: 'all-day event',
-      progress: null,
-    };
+    return { phase: 'ended', headline: ago === 1 ? 'Yesterday' : `${ago}d ago`, detail, progress: null };
   }
   const { originalStart: start, originalEnd: end } = ev;
   if (now < start) {
