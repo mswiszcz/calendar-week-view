@@ -36,6 +36,7 @@ import {
   todayRelation,
   windowDays,
 } from '@/week';
+import { renderTemplate } from '@/format';
 import { buildForecastMap, forecastForEvent, weatherIcon } from '@/weather';
 import { styles } from '@/card.styles';
 
@@ -500,6 +501,24 @@ export class CalendarWeekViewCard extends LitElement {
     return (loc ? dt.setLocale(loc) : dt).toFormat(fmt);
   }
 
+  /** Inline `--c` / `--btn-bg` custom properties for a configured button's accent and fill. */
+  private _buttonStyle(btn: ButtonConfig): string {
+    const parts: string[] = [];
+    if (btn.color) parts.push(`--c:${btn.color}`);
+    if (btn.background) parts.push(`--btn-bg:${btn.background}`);
+    return parts.join(';');
+  }
+
+  /** Day-header suptext and number from the shared templates, with per-view fallbacks. */
+  private _dayHeader(dt: DateTime, calendar: boolean): { sup: string; num: string } {
+    const cfg = this._config;
+    const sup = cfg.headerSuptext ?? (calendar ? '{ccc}' : '{yyyy · LLLL · cccc}');
+    return {
+      sup: renderTemplate(dt, sup, cfg.locale),
+      num: renderTemplate(dt, cfg.headerText ?? '{d}', cfg.locale),
+    };
+  }
+
   /** Recenter the window only once scrolling settles, so an active page animation is never cut short. */
   private _onScroll(): void {
     if (this._scrollTimer) clearTimeout(this._scrollTimer);
@@ -859,7 +878,7 @@ export class CalendarWeekViewCard extends LitElement {
           (btn) => html`
             <button
               class=${classMap({ hbtn: true, labeled: !!btn.name })}
-              style=${btn.color ? `--c:${btn.color}` : ''}
+              style=${this._buttonStyle(btn)}
               aria-label=${btn.name ?? btn.icon}
               title=${btn.name ?? ''}
               @click=${() => this._runButton(btn)}
@@ -888,7 +907,7 @@ export class CalendarWeekViewCard extends LitElement {
           (btn) => html`
             <button
               class="fbtn"
-              style=${btn.color ? `--c:${btn.color}` : ''}
+              style=${this._buttonStyle(btn)}
               aria-label=${btn.name ?? btn.icon}
               title=${btn.name ?? ''}
               @click=${() => this._runButton(btn)}
@@ -914,13 +933,14 @@ export class CalendarWeekViewCard extends LitElement {
     const allday = col.allDayEvents.length
       ? html`<div class="allday">${col.allDayEvents.map((e) => this._renderPill(e))}</div>`
       : '';
+    const head = this._dayHeader(col.date, calendar);
     if (calendar) {
       return html`
         <div class=${classMap({ day: true, cal: true, today: col.isToday, past: col.isPast })}>
           <div class="cal-head">
             <div class="cal-dayhead">
-              <span class="cd-name">${this._fmt(col.date, 'ccc')}</span>
-              <span class="cd-num">${col.date.day}</span>
+              <span class="cd-name">${head.sup}</span>
+              <span class="cd-num">${head.num}</span>
             </div>
             ${allday}
           </div>
@@ -932,8 +952,8 @@ export class CalendarWeekViewCard extends LitElement {
       <div class=${classMap({ day: true, today: col.isToday, past: col.isPast })}>
         <div class="day-head">
           <div class="dstack">
-            <span class="dmeta">${this._fmt(col.date, this._config.dateFormat ?? 'yyyy · LLLL · cccc')}</span>
-            <span class="dnum">${col.date.day}</span>
+            <span class="dmeta">${head.sup}</span>
+            <span class="dnum">${head.num}</span>
           </div>
         </div>
         ${allday}

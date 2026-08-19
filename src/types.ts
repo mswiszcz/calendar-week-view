@@ -5,14 +5,16 @@ export type WeekStart = 'monday' | 'sunday';
 
 /**
  * A user-defined button. `icon` is required; `name` labels it in the header and
- * is the tooltip on a floating button. `tap_action` is a standard Home Assistant
- * action (navigate, url, call-service, more-info, toggle); a button without one
- * renders but does nothing.
+ * is the tooltip on a floating button. `color` accents the glyph (and header
+ * chip); `background` sets the button's fill (its hover shade is derived from it).
+ * `tap_action` is a standard Home Assistant action (navigate, url, call-service,
+ * more-info, toggle); a button without one renders but does nothing.
  */
 export interface ButtonConfig {
   icon: string;
   name?: string;
   color?: string;
+  background?: string;
   tap_action?: ActionConfig;
 }
 
@@ -76,7 +78,9 @@ export interface CardConfig {
   noCardBackground?: boolean;
   locale?: string;
   timeFormat?: string;
-  dateFormat?: string;
+  /** Day-header templates: literal text plus `{luxonToken}` groups (e.g. `Day {d}`). */
+  headerSuptext?: string;
+  headerText?: string;
   showClock?: boolean;
   showNextEvent?: boolean;
   clockFormat?: string;
