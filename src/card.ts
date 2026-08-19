@@ -56,6 +56,9 @@ const HOUR_H = 56;
 const ALLDAY_H = 46;
 /** Smallest rendered height for a timed block, so brief events stay tappable. */
 const MIN_EVENT_H = 20;
+/** Minimum block height in the expanded layout — a readable two lines, so the
+ *  toggle visibly enlarges cramped/short events, not just overlapping ones. */
+const EXPANDED_MIN_EVENT_H = 44;
 
 type ForecastSlot = { condition: string; temperature: number };
 
@@ -632,7 +635,7 @@ export class CalendarWeekViewCard extends LitElement {
     const expanded = calendar && this._expanded;
     const hasAllDay = calendar && this._columns.some((c) => c.allDayEvents.length > 0);
     const stacks = expanded
-      ? this._columns.map((c) => stackDayEvents(c.timedEvents, (MIN_EVENT_H / HOUR_H) * 60))
+      ? this._columns.map((c) => stackDayEvents(c.timedEvents, (EXPANDED_MIN_EVENT_H / HOUR_H) * 60))
       : null;
     const gridMin = stacks ? Math.max(1440, ...stacks.flatMap((s) => s.map((x) => x.topMin + x.heightMin))) : 1440;
     const styleParts = [
