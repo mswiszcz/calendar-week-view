@@ -10,6 +10,7 @@ import type {
   CardConfig,
   DayColumn,
   HourlyForecast,
+  PositionedEvent,
   RecurrenceScope,
   WeekEvent,
 } from '@/types';
@@ -19,6 +20,7 @@ import {
   computeWeekStart,
   dayCountFor,
   formatCountdown,
+  layoutDayEvents,
   normalizeEvent,
   pickUpcoming,
   supportsFeature,
@@ -42,6 +44,13 @@ const COLOR_TOKENS: Record<string, string> = {
 const BUFFER_WEEKS = 1;
 /** Total weeks of day columns rendered at once (viewport week plus buffers). */
 const WINDOW_WEEKS = 1 + BUFFER_WEEKS * 2;
+
+/** Pixel height of one hour row in calendar view. Must match `--cwv-hour-h`. */
+const HOUR_H = 56;
+/** Reserved height of the all-day band when any visible column has all-day events. */
+const ALLDAY_H = 46;
+/** Smallest rendered height for a timed block, so brief events stay tappable. */
+const MIN_EVENT_H = 20;
 
 type ForecastSlot = { condition: string; temperature: number };
 
@@ -289,27 +298,39 @@ export class CalendarWeekViewCard extends LitElement {
     return this.renderRoot.querySelector<HTMLElement>('.week');
   }
 
-  /** Left of each child relative to the strip's content origin (scroll-independent). */
+  /** The day columns in order, skipping the calendar-view hour gutter. */
+  private _days(strip: HTMLElement): HTMLElement[] {
+    return Array.from(strip.querySelectorAll<HTMLElement>(':scope > .day'));
+  }
+
+  /** Width the sticky hour gutter covers at the strip's left edge (0 in agenda view). */
+  private _lead(strip: HTMLElement): number {
+    return strip.querySelector<HTMLElement>(':scope > .gutter')?.offsetWidth ?? 0;
+  }
+
+  /** Left of a day column relative to the strip's content origin (scroll-independent). */
   private _childLeft(strip: HTMLElement, i: number): number {
-    const child = strip.children[i] as HTMLElement | undefined;
+    const child = this._days(strip)[i];
     if (!child) return 0;
     return child.getBoundingClientRect().left - strip.getBoundingClientRect().left + strip.scrollLeft;
   }
 
-  /** Index of the first day column whose right edge is still visible. */
+  /** Index of the first day column whose right edge clears the gutter into view. */
   private _leftmostIndex(strip: HTMLElement): number {
-    for (let i = 0; i < strip.children.length; i++) {
-      const child = strip.children[i] as HTMLElement;
-      if (this._childLeft(strip, i) + child.offsetWidth > strip.scrollLeft + 1) return i;
+    const days = this._days(strip);
+    const edge = strip.scrollLeft + this._lead(strip);
+    for (let i = 0; i < days.length; i++) {
+      if (this._childLeft(strip, i) + days[i].offsetWidth > edge + 1) return i;
     }
     return 0;
   }
 
   /** Index of the last day column whose left edge is still within the viewport. */
   private _rightmostIndex(strip: HTMLElement): number {
+    const days = this._days(strip);
     const edge = strip.scrollLeft + strip.clientWidth;
     let last = 0;
-    for (let i = 0; i < strip.children.length; i++) {
+    for (let i = 0; i < days.length; i++) {
       if (this._childLeft(strip, i) < edge - 1) last = i;
       else break;
     }
@@ -332,10 +353,13 @@ export class CalendarWeekViewCard extends LitElement {
     return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   }
 
-  /** Absolute scrollLeft that lands day column `i` at the strip's left edge, clamped to range. */
+  /**
+   * Absolute scrollLeft that lands day column `i` at the strip's left edge, past
+   * the calendar-view hour gutter, clamped to range.
+   */
   private _columnScrollLeft(strip: HTMLElement, i: number): number {
     const max = Math.max(0, strip.scrollWidth - strip.clientWidth);
-    return Math.max(0, Math.min(max, this._childLeft(strip, i)));
+    return Math.max(0, Math.min(max, this._childLeft(strip, i) - this._lead(strip)));
   }
 
   /**
@@ -373,6 +397,15 @@ export class CalendarWeekViewCard extends LitElement {
     this._scrollToToday = true;
     this._windowOffset = -BUFFER_WEEKS;
     void this._fetchAndBuild();
+  }
+
+  private _isCalendar(): boolean {
+    return (this._config.viewMode ?? 'agenda') === 'calendar';
+  }
+
+  /** Configured start hour, clamped to a valid 0–23 grid row. */
+  private _startHour(): number {
+    return Math.min(23, Math.max(0, Math.round(this._config.startHour ?? 8)));
   }
 
   /** Format a DateTime with the configured locale applied, if any. */
@@ -494,6 +527,7 @@ export class CalendarWeekViewCard extends LitElement {
     if (idx < 0) return;
     const behavior: ScrollBehavior = this._jumpSmooth && !this._reducedMotion() ? 'smooth' : 'auto';
     strip.scrollTo({ left: this._columnScrollLeft(strip, idx), behavior });
+    if (this._isCalendar()) strip.scrollTop = this._startHour() * HOUR_H;
     this._scrollToToday = false;
     this._jumpSmooth = false;
     this._jumping = false;
@@ -503,7 +537,13 @@ export class CalendarWeekViewCard extends LitElement {
   render() {
     if (!this._config) return html``;
     const cfg = this._config;
-    const styleParts = [`--cwv-visible:${cfg.visibleDays ?? 3}`];
+    const calendar = this._isCalendar();
+    const hasAllDay = calendar && this._columns.some((c) => c.allDayEvents.length > 0);
+    const styleParts = [
+      `--cwv-visible:${cfg.visibleDays ?? 3}`,
+      `--cwv-hour-h:${HOUR_H}px`,
+      `--cwv-allday-h:${hasAllDay ? ALLDAY_H : 0}px`,
+    ];
     if (cfg.height) styleParts.push(`--cwv-min-h:${cfg.height}`);
     for (const [key, token] of Object.entries(COLOR_TOKENS)) {
       const value = cfg.colors?.[key as keyof typeof cfg.colors];
@@ -527,11 +567,12 @@ export class CalendarWeekViewCard extends LitElement {
                     <ha-icon icon="mdi:chevron-left"></ha-icon>
                   </button>`
             }
-            <div class="week" @scroll=${this._onScroll}>
+            <div class=${classMap({ week: true, cal: calendar })} @scroll=${this._onScroll}>
+              ${calendar ? this._renderGutter() : ''}
               ${repeat(
                 this._columns,
                 (col) => col.date.toISODate() ?? '',
-                (col) => this._renderDay(col),
+                (col) => this._renderDay(col, calendar),
               )}
             </div>
             ${
@@ -630,7 +671,24 @@ export class CalendarWeekViewCard extends LitElement {
     `;
   }
 
-  private _renderDay(col: DayColumn) {
+  private _renderDay(col: DayColumn, calendar = false) {
+    const allday = col.allDayEvents.length
+      ? html`<div class="allday">${col.allDayEvents.map((e) => this._renderPill(e))}</div>`
+      : '';
+    if (calendar) {
+      return html`
+        <div class=${classMap({ day: true, cal: true, today: col.isToday, past: col.isPast })}>
+          <div class="cal-head">
+            <div class="cal-dayhead">
+              <span class="cd-name">${this._fmt(col.date, 'ccc')}</span>
+              <span class="cd-num">${col.date.day}</span>
+            </div>
+            ${allday}
+          </div>
+          ${this._renderGrid(col)}
+        </div>
+      `;
+    }
     return html`
       <div class=${classMap({ day: true, today: col.isToday, past: col.isPast })}>
         <div class="day-head">
@@ -639,11 +697,7 @@ export class CalendarWeekViewCard extends LitElement {
             <span class="dnum">${col.date.day}</span>
           </div>
         </div>
-        ${
-          col.allDayEvents.length
-            ? html`<div class="allday">${col.allDayEvents.map((e) => this._renderPill(e))}</div>`
-            : ''
-        }
+        ${allday}
         <div class="events">
           ${
             col.timedEvents.length
@@ -653,6 +707,75 @@ export class CalendarWeekViewCard extends LitElement {
         </div>
       </div>
     `;
+  }
+
+  /** The pinned hour axis for calendar view: a sticky corner above 24 hour labels. */
+  private _renderGutter() {
+    const use12 = /[ah]/.test(this._config.timeFormat ?? 'HH:mm');
+    const fmt = use12 ? 'h a' : 'HH';
+    const base = this._now().startOf('day');
+    return html`
+      <div class="gutter">
+        <div class="gutter-corner"></div>
+        <div class="gutter-hours">
+          ${Array.from(
+            { length: 24 },
+            (_unused, h) =>
+              html`<div class="hour" style="top:${h * HOUR_H}px">${this._fmt(base.plus({ hours: h }), fmt)}</div>`,
+          )}
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderGrid(col: DayColumn) {
+    const placed = layoutDayEvents(col.timedEvents);
+    return html`
+      <div class="grid">
+        ${placed.map((p) => this._renderTimed(p))}
+        ${col.isToday ? this._renderNow() : ''}
+      </div>
+    `;
+  }
+
+  private _renderTimed(p: PositionedEvent) {
+    const e = p.event;
+    const cfg = this._config;
+    const fmt = cfg.timeFormat ?? 'HH:mm';
+    const top = (p.startMin / 60) * HOUR_H;
+    const height = Math.max(MIN_EVENT_H, ((p.endMin - p.startMin) / 60) * HOUR_H);
+    const width = 100 / p.cols;
+    const left = p.col * width;
+    const wx = cfg.weather ? forecastForEvent(e, this._now(), this._forecast) : null;
+    const round = cfg.weather?.roundTemperature ?? true;
+    const style = `top:${top}px;height:${height}px;left:calc(${left}% + 2px);width:calc(${width}% - 4px);--c:${e.color}`;
+    return html`
+      <button class="tev" style=${style} title=${e.summary} @click=${() => this._openDetails(e)}>
+        <span class="tev-time">
+          ${this._fmt(e.start, fmt)}
+          ${
+            wx
+              ? html`<span class="tev-wx">
+                  <ha-icon icon=${weatherIcon(wx.condition)}></ha-icon>
+                  ${
+                    cfg.weather?.showTemperature === false
+                      ? ''
+                      : html`${round ? Math.round(wx.temperature) : wx.temperature}°`
+                  }
+                </span>`
+              : ''
+          }
+        </span>
+        <span class="tev-title">${e.summary}</span>
+      </button>
+    `;
+  }
+
+  /** The current-time line, drawn across today's grid. */
+  private _renderNow() {
+    const now = this._now();
+    const top = ((now.hour * 60 + now.minute) / 60) * HOUR_H;
+    return html`<div class="nowline" style="top:${top}px"><span class="now-dot"></span></div>`;
   }
 
   private _renderPill(e: WeekEvent) {

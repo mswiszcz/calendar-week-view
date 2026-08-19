@@ -1,5 +1,8 @@
 import { DateTime } from 'luxon';
-import type { CalendarConfig, CalendarEventInput, DayColumn, WeekEvent, WeekStart } from '@/types';
+import type { CalendarConfig, CalendarEventInput, DayColumn, PositionedEvent, WeekEvent, WeekStart } from '@/types';
+
+/** Minutes in a day — the calendar-view grid spans a full 0…MINUTES_PER_DAY. */
+const MINUTES_PER_DAY = 24 * 60;
 
 /** HA calendar entity feature bit flags (bitwise `supported_features`). */
 export const CalendarFeature = { CREATE: 1, DELETE: 2, UPDATE: 4 } as const;
@@ -104,6 +107,56 @@ export function normalizeEvent(
 
 function byStart(a: WeekEvent, b: WeekEvent): number {
   return a.originalStart.toMillis() - b.originalStart.toMillis();
+}
+
+/**
+ * Lay timed events onto the hour grid, splitting overlaps into side-by-side lanes.
+ *
+ * Events are grouped into clusters of transitively-overlapping pieces; within a
+ * cluster each event takes the first lane whose previous event has ended, and
+ * every event in the cluster reports the cluster's lane count so the column
+ * width divides evenly. Non-overlapping events each get a full-width single lane.
+ *
+ * Both ends are measured from the start piece's midnight, so a piece clamped to
+ * the next midnight (as `buildDayColumns` produces) ends at `MINUTES_PER_DAY`.
+ */
+export function layoutDayEvents(events: WeekEvent[]): PositionedEvent[] {
+  const placed: PositionedEvent[] = events
+    .map((event) => {
+      const dayStart = event.start.startOf('day');
+      const startMin = Math.min(MINUTES_PER_DAY, Math.max(0, event.start.diff(dayStart).as('minutes')));
+      const rawEnd = event.end.diff(dayStart).as('minutes');
+      const endMin = Math.min(MINUTES_PER_DAY, Math.max(rawEnd, startMin + 1));
+      return { event, startMin, endMin, col: 0, cols: 1 };
+    })
+    // `map` already returned a fresh array, so sorting it in place is safe.
+    // oxlint-disable-next-line no-array-sort
+    .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+
+  let cluster: PositionedEvent[] = [];
+  let laneEnds: number[] = [];
+  let clusterEnd = -Infinity;
+  const closeCluster = (): void => {
+    const cols = laneEnds.length;
+    for (const p of cluster) p.cols = cols;
+    cluster = [];
+    laneEnds = [];
+    clusterEnd = -Infinity;
+  };
+  for (const p of placed) {
+    if (p.startMin >= clusterEnd) closeCluster();
+    let lane = laneEnds.findIndex((end) => p.startMin >= end);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(0);
+    }
+    laneEnds[lane] = p.endMin;
+    p.col = lane;
+    cluster.push(p);
+    clusterEnd = Math.max(clusterEnd, p.endMin);
+  }
+  closeCluster();
+  return placed;
 }
 
 /**

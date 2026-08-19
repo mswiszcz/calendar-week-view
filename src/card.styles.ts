@@ -12,6 +12,14 @@ export const styles = css`
   :host {
     --cwv-min-h: 520px;
     --cwv-visible: 3;
+    /* calendar view — hour row height (mirrored by HOUR_H in card.ts), gutter
+       width, the fixed head/all-day band, and grid line / now-line tints */
+    --cwv-hour-h: 56px;
+    --cwv-header-h: 44px;
+    --cwv-allday-h: 0px;
+    --cwv-gutter-w: 52px;
+    --cwv-line: color-mix(in srgb, var(--primary-text-color, #1a1c1e) 9%, transparent);
+    --cwv-now: var(--error-color, #ea4335);
     --on-primary: var(--text-primary-color, #ffffff);
     --neutral-tile: color-mix(in srgb, var(--primary-text-color, #1a1c1e) 3%, var(--card-background-color, #ffffff));
     --hover-tint: color-mix(in srgb, var(--primary-text-color, #1a1c1e) 5%, transparent);
@@ -501,6 +509,204 @@ export const styles = css`
   }
   .day.past .ev {
     opacity: 0.7;
+  }
+
+  /* calendar (time-grid) view — the strip scrolls both axes; the hour gutter
+     pins to the left and the day heads pin to the top, so every column shares
+     one vertical hour scale. */
+  .week.cal {
+    overflow: auto;
+    gap: 0;
+    align-items: flex-start;
+    padding: 0;
+    scroll-snap-type: none;
+    scroll-padding-left: var(--cwv-gutter-w);
+  }
+  .week.cal::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+    display: block;
+  }
+  .week.cal::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--primary-text-color) 16%, transparent);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .gutter {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    flex: 0 0 var(--cwv-gutter-w);
+    background: var(--card-background-color);
+  }
+  .gutter-corner {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    height: calc(var(--cwv-header-h) + var(--cwv-allday-h));
+    background: var(--card-background-color);
+  }
+  .gutter-hours {
+    position: relative;
+    height: calc(24 * var(--cwv-hour-h));
+  }
+  .gutter .hour {
+    position: absolute;
+    right: 6px;
+    transform: translateY(-1px);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--secondary-text-color);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .day.cal {
+    flex: 0 0 calc((100% - var(--cwv-gutter-w)) / var(--cwv-visible, 3));
+    scroll-snap-align: start;
+    background: transparent;
+    border-radius: 0;
+    border-right: 1px solid var(--divider-color);
+    overflow: visible;
+  }
+  .day.cal .cal-head {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    height: calc(var(--cwv-header-h) + var(--cwv-allday-h));
+    display: flex;
+    flex-direction: column;
+    background: var(--card-background-color);
+    border-bottom: 1px solid var(--divider-color);
+  }
+  .day.cal.today .cal-head {
+    background: var(--today-tint);
+  }
+  .cal-dayhead {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    height: var(--cwv-header-h);
+    padding: 8px 10px 4px;
+  }
+  .cd-name {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--secondary-text-color);
+  }
+  .cd-num {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .day.cal.today .cd-name,
+  .day.cal.today .cd-num {
+    color: var(--primary-color);
+  }
+  .day.cal .allday {
+    flex: 1;
+    min-height: 0;
+    padding: 0 6px 4px;
+    gap: 3px;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .day.cal .allday::-webkit-scrollbar {
+    display: none;
+  }
+
+  .grid {
+    position: relative;
+    height: calc(24 * var(--cwv-hour-h));
+    background-image: repeating-linear-gradient(
+      to bottom,
+      var(--cwv-line) 0,
+      var(--cwv-line) 1px,
+      transparent 1px,
+      transparent var(--cwv-hour-h)
+    );
+  }
+  .day.cal.today .grid {
+    background-color: var(--today-tint);
+  }
+  .day.cal.past .grid {
+    opacity: 0.7;
+  }
+
+  .tev {
+    position: absolute;
+    z-index: 1;
+    margin: 0;
+    padding: 3px 8px;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    text-align: left;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font: inherit;
+    color: var(--primary-text-color);
+    background: color-mix(in srgb, var(--c) 24%, var(--card-background-color));
+    appearance: none;
+    transition: filter 0.12s ease;
+  }
+  .tev:hover {
+    filter: brightness(1.06);
+    z-index: 2;
+  }
+  .tev-time {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--secondary-text-color);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tev-wx {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .tev-wx ha-icon {
+    --mdc-icon-size: 14px;
+    opacity: 0.9;
+  }
+  .tev-title {
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .nowline {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 0;
+    border-top: 2px solid var(--cwv-now);
+    z-index: 3;
+    pointer-events: none;
+  }
+  .now-dot {
+    position: absolute;
+    left: -1px;
+    top: -4px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--cwv-now);
   }
 
   .details {
