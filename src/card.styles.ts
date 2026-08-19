@@ -189,8 +189,48 @@ export const styles = css`
     opacity: 0.45;
   }
 
+  /* carousel — arrows flank the day strip; the strip itself swipes/scrolls */
+  .carousel {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .car-arrow {
+    flex: none;
+    align-self: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--divider-color);
+    background: var(--card-background-color);
+    color: var(--primary-text-color);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
+    transition:
+      background 0.15s ease,
+      transform 0.15s ease,
+      border-color 0.15s ease;
+  }
+  .car-arrow:hover {
+    transform: scale(1.07);
+    background: var(--hover-tint);
+    border-color: color-mix(in srgb, var(--primary-color) 40%, var(--divider-color));
+  }
+  .car-arrow:active {
+    transform: scale(0.97);
+  }
+  .car-arrow ha-icon {
+    --mdc-icon-size: 22px;
+  }
+
   /* week — horizontal scroll strip, ~visibleDays columns visible, snaps.
-     Fills the card height; columns stretch to fill. */
+     Fills the card height; columns stretch to fill. Scrollbar hidden — the
+     arrows and swipe drive navigation. */
   .week {
     position: relative;
     flex: 1;
@@ -201,16 +241,11 @@ export const styles = css`
     overflow-x: auto;
     padding: 6px 2px;
     scroll-snap-type: x proximity;
-    scrollbar-width: thin;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
   .week::-webkit-scrollbar {
-    height: 9px;
-  }
-  .week::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--primary-text-color) 16%, transparent);
-    border-radius: 9px;
-    border: 2px solid transparent;
-    background-clip: padding-box;
+    display: none;
   }
   .day {
     position: relative;
