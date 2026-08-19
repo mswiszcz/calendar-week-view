@@ -68,12 +68,10 @@ export class CalendarWeekViewCard extends LitElement {
   private _refetchQueued = false;
   private _scrollToToday = true;
   private _jumping = false;
+  private _jumpSmooth = false;
   private _scrollTimer?: number;
   private _clockTimer?: number;
-  private _anim?: number;
-  private _animSafety?: number;
-  private _animTarget = 0;
-  private _pageIndex?: number;
+  private _pageTargetCol?: number;
   private _timer?: number;
   private _weatherUnsub?: () => void;
   private _weatherPending = false;
@@ -129,10 +127,6 @@ export class CalendarWeekViewCard extends LitElement {
     if (this._timer) window.clearTimeout(this._timer);
     if (this._scrollTimer) window.clearTimeout(this._scrollTimer);
     if (this._clockTimer) window.clearTimeout(this._clockTimer);
-    if (this._animSafety) window.clearTimeout(this._animSafety);
-    if (this._anim != null) window.cancelAnimationFrame(this._anim);
-    this._anim = undefined;
-    this._animSafety = undefined;
     this._weatherUnsub?.();
     this._weatherUnsub = undefined;
   }
@@ -338,83 +332,46 @@ export class CalendarWeekViewCard extends LitElement {
     return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   }
 
-  private _endAnim(target?: number): void {
-    if (this._anim != null) window.cancelAnimationFrame(this._anim);
-    if (this._animSafety) window.clearTimeout(this._animSafety);
-    this._anim = undefined;
-    this._animSafety = undefined;
-    this._pageIndex = undefined;
-    const s = this._strip();
-    if (s && target != null) s.scrollLeft = target;
-    this._updateTodayVisibility();
-  }
-
-  /**
-   * Ease the strip to an absolute scroll position with a self-driven animation.
-   * The loop reads `_animTarget` every frame, so a click landing mid-animation
-   * just retargets it — paging is never blocked waiting for the motion to end.
-   * A timeout backstop lands the target even where rAF is throttled (background
-   * tab, some webviews), so paging and "today" stay reliable.
-   */
-  private _animateTo(strip: HTMLElement, target: number): void {
+  /** Absolute scrollLeft that lands day column `i` at the strip's left edge, clamped to range. */
+  private _columnScrollLeft(strip: HTMLElement, i: number): number {
     const max = Math.max(0, strip.scrollWidth - strip.clientWidth);
-    this._animTarget = Math.max(0, Math.min(max, target));
-    if (this._reducedMotion()) {
-      this._endAnim(this._animTarget);
-      return;
-    }
-    if (this._animSafety) window.clearTimeout(this._animSafety);
-    this._animSafety = window.setTimeout(() => this._endAnim(this._animTarget), 700);
-    if (this._anim != null) return;
-    const step = (): void => {
-      const s = this._strip();
-      if (!s) {
-        this._anim = undefined;
-        return;
-      }
-      const dx = this._animTarget - s.scrollLeft;
-      if (Math.abs(dx) < 1) {
-        s.scrollLeft = this._animTarget;
-        this._endAnim();
-        return;
-      }
-      s.scrollLeft += dx * 0.22;
-      this._anim = window.requestAnimationFrame(step);
-    };
-    this._anim = window.requestAnimationFrame(step);
+    return Math.max(0, Math.min(max, this._childLeft(strip, i)));
   }
 
   /**
-   * Page the strip by one viewport, landing on a whole day column. Paging is
-   * tracked by column index rather than absolute pixels: a click mid-animation
-   * advances from the pending target column (so rapid clicks step predictably),
-   * and index targets survive the window recenter — which is deferred until the
-   * animation settles (see `_afterScroll`) so it can never fight the motion.
+   * Page the strip by one viewport, landing on a whole day column, using the
+   * browser's native smooth scroll (compositor-driven — no main-thread rAF, so
+   * it stays fluid on tablet webviews). The pending target column is tracked so
+   * a click mid-scroll advances one more page from there; the window recenter
+   * runs only once scrolling settles (see `_afterScroll`), never mid-motion.
    */
   private _carousel(dir: 1 | -1): void {
     const strip = this._strip();
     if (!strip || this._columns.length === 0) return;
     const step = Math.max(1, Math.round(this._config.visibleDays ?? 3));
-    const base = this._anim != null && this._pageIndex != null ? this._pageIndex : this._leftmostIndex(strip);
+    const base = this._pageTargetCol ?? this._leftmostIndex(strip);
     const target = Math.max(0, Math.min(this._columns.length - 1, base + dir * step));
-    this._pageIndex = target;
-    this._animateTo(strip, this._childLeft(strip, target));
+    this._pageTargetCol = target;
+    strip.scrollTo({ left: this._columnScrollLeft(strip, target), behavior: this._reducedMotion() ? 'auto' : 'smooth' });
   }
 
-  /** Jump to today: scroll it to the left edge if loaded, otherwise recenter the window on it. */
+  /** Jump to today: smooth-scroll it to the left edge if loaded, otherwise reset the window and land it. */
   private _goToday(): void {
-    // Stop any in-flight paging first: its stale pixel target would otherwise drag
-    // the strip back off today (the far branch never calls _animateTo to retarget it).
-    this._endAnim();
+    this._pageTargetCol = undefined;
     const strip = this._strip();
     const idx = this._columns.findIndex((c) => c.isToday);
     if (strip && idx >= 0) {
-      this._animateTo(strip, this._childLeft(strip, idx));
+      strip.scrollTo({ left: this._columnScrollLeft(strip, idx), behavior: this._reducedMotion() ? 'auto' : 'smooth' });
       return;
     }
+    // Today is outside the loaded window: reset it and let updated() land today on
+    // the first render that contains it — robust to a refetch already in flight
+    // (a queued rebuild still triggers updated). Its smooth scroll there also
+    // retargets any page animation still running, so it can't drag off today.
     this._jumping = true;
-    this._windowOffset = -BUFFER_WEEKS;
+    this._jumpSmooth = true;
     this._scrollToToday = true;
+    this._windowOffset = -BUFFER_WEEKS;
     void this._fetchAndBuild();
   }
 
@@ -432,7 +389,8 @@ export class CalendarWeekViewCard extends LitElement {
 
   private async _afterScroll(): Promise<void> {
     const strip = this._strip();
-    if (!strip || this._columns.length === 0 || this._loading || this._jumping || this._anim != null) return;
+    if (!strip || this._columns.length === 0 || this._loading || this._jumping) return;
+    this._pageTargetCol = undefined;
     this._updateTodayVisibility();
     const idx = this._leftmostIndex(strip);
     const count = dayCountFor(this._config.hideWeekend ?? false);
@@ -453,9 +411,10 @@ export class CalendarWeekViewCard extends LitElement {
     const after = this._strip();
     const i = this._columns.findIndex((c) => c.date.toISODate() === anchorDate);
     if (after && i >= 0) after.scrollLeft = this._childLeft(after, i) - viewportX;
-    // A click during the refetch may have started a page toward a now-stale
-    // pixel target; the re-pin above is authoritative, so drop that animation.
-    if (this._anim != null) this._endAnim();
+    // The rebuild remapped every column index; a page target captured against the
+    // old window (a click during the refetch) is now stale — drop it so the next
+    // click pages from the current leftmost.
+    this._pageTargetCol = undefined;
   }
 
   private _toggleCalendar(entity: string): void {
@@ -522,10 +481,10 @@ export class CalendarWeekViewCard extends LitElement {
   }
 
   /**
-   * After the initial load (or a Today reset), land the strip with today at the
-   * left edge. Waits for the render that actually contains today: setting
-   * `_windowOffset` renders once with the old (today-less) columns before the
-   * refetch resolves, and acting on that stale frame would mis-land the jump.
+   * Land the strip with today at the left edge on the first render that contains
+   * it — the initial load (instant) or a Today reset (smooth, which also
+   * retargets any page scroll still animating). Waits out the today-less render
+   * that a `_windowOffset` change produces before its refetch resolves.
    */
   protected updated(): void {
     if (!this._scrollToToday) return;
@@ -533,8 +492,10 @@ export class CalendarWeekViewCard extends LitElement {
     if (!strip || this._columns.length === 0) return;
     const idx = this._columns.findIndex((c) => c.isToday);
     if (idx < 0) return;
-    strip.scrollLeft = this._childLeft(strip, idx);
+    const behavior: ScrollBehavior = this._jumpSmooth && !this._reducedMotion() ? 'smooth' : 'auto';
+    strip.scrollTo({ left: this._columnScrollLeft(strip, idx), behavior });
     this._scrollToToday = false;
+    this._jumpSmooth = false;
     this._jumping = false;
     this._updateTodayVisibility();
   }
