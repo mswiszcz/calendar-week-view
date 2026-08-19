@@ -15,6 +15,7 @@ const GENERAL_SCHEMA = [
   { name: 'showNavigation', selector: { boolean: {} } },
   { name: 'showLegend', selector: { boolean: {} } },
   { name: 'legendToggle', selector: { boolean: {} } },
+  { name: 'showClock', selector: { boolean: {} } },
   { name: 'addEvents', selector: { boolean: {} } },
 ];
 
@@ -28,6 +29,8 @@ const ADVANCED_SCHEMA = [
   },
   { name: 'timeFormat', selector: { text: {} } },
   { name: 'dateFormat', selector: { text: {} } },
+  { name: 'clockFormat', selector: { text: {} } },
+  { name: 'headerDateFormat', selector: { text: {} } },
   { name: 'locale', selector: { text: {} } },
 ];
 
@@ -40,6 +43,7 @@ const LABELS: Record<string, string> = {
   showNavigation: 'Show navigation',
   showLegend: 'Show legend',
   legendToggle: 'Legend toggles calendars',
+  showClock: 'Show clock & next event',
   addEvents: 'Enable quick-add button',
   compact: 'Compact',
   noCardBackground: 'No card background',
@@ -47,6 +51,8 @@ const LABELS: Record<string, string> = {
   updateInterval: 'Update interval',
   timeFormat: 'Time format',
   dateFormat: 'Date format (day header)',
+  clockFormat: 'Clock format (e.g. HH:mm)',
+  headerDateFormat: 'Header date format',
   locale: 'Locale (e.g. en, de, fr)',
 };
 

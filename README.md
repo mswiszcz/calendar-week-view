@@ -3,8 +3,10 @@
 A Home Assistant Lovelace card that renders the **current week** as a horizontal
 strip of day-columns: a highlighted **today**, per-event **start–end times** and
 **hourly weather**, all-day / multi-day pills with continuation chevrons, a
-calendar legend, a **Today** jump button, floating carousel arrows, and a
-floating **quick-add** button.
+calendar legend, floating carousel arrows, and a floating **quick-add** button.
+A status header carries a bold **live clock**, today's **date**, and the **next
+upcoming event** with a live countdown; a **return-to-today** glyph appears
+only when today has scrolled off-screen and points the way back.
 
 ![Light](docs/superpowers/specs/assets/comp-light.png)
 ![Dark](docs/superpowers/specs/assets/comp-dark.png)
@@ -76,9 +78,10 @@ calendars:
 | `visibleDays` | number | `3` | Columns visible at once; the strip scrolls to reveal the rest. |
 | `hideWeekend` | boolean | `false` | Show Monday–Friday only (5 columns). |
 | `height` | string | `520px` | **Minimum** height. The card fills its container (full height in a panel view) and never shrinks below this. |
-| `showNavigation` | boolean | `true` | Show the **Today** button and the floating carousel day arrows. The strip pages by one view and rolls into adjacent weeks; swipe still works. |
+| `showNavigation` | boolean | `true` | Show the floating carousel day arrows and the **return-to-today** glyph. The strip pages by one view and rolls into adjacent weeks; swipe still works. |
 | `showLegend` | boolean | `true` | Show the calendar legend chips. |
 | `legendToggle` | boolean | `true` | Click a legend chip to hide/show that calendar's events. |
+| `showClock` | boolean | `true` | Show the status header: live clock, date, and next upcoming event. |
 | `addEvents` | boolean | `false` | Show the floating quick-add button (needs ≥1 writable calendar). |
 | `addEventCalendars` | list of entity ids | all writable | Restrict the add dialog's calendar picker. |
 | `weather` | object | — | Optional hourly weather. See [Weather options](#weather-options). |
@@ -89,8 +92,10 @@ calendars:
 | `noCardBackground` | boolean | `false` | Render without the card background and shadow. |
 | `timeFormat` | string | `HH:mm` | [Luxon](https://moment.github.io/luxon/#/formatting) token for event times. |
 | `dateFormat` | string | `yyyy · LLLL · cccc` | [Luxon](https://moment.github.io/luxon/#/formatting) token for the meta line above each day number (e.g. `2026 · August · Saturday`). |
+| `clockFormat` | string | `HH:mm` | [Luxon](https://moment.github.io/luxon/#/formatting) token for the header clock. Include seconds (e.g. `HH:mm:ss`) to make it tick every second. |
+| `headerDateFormat` | string | `cccc, d LLLL` | [Luxon](https://moment.github.io/luxon/#/formatting) token for the date beside the clock (e.g. `Wednesday, 19 August`). |
 | `locale` | string | browser | BCP-47 locale (e.g. `en`, `de`, `fr`) applied to formatted dates and times. |
-| `texts` | object | — | String overrides. Currently: `noEvents` (empty-day text), `today` (Today button label). |
+| `texts` | object | — | String overrides. Currently: `noEvents` (empty-day text), `today` (return-to-today button label). |
 
 ### Calendar options
 
@@ -126,7 +131,7 @@ Assistant theme when unset. Accepts any CSS color (hex, named, or `var(--token)`
 
 ```yaml
 colors:
-  accent: '#0aa2e6'        # today accent, quick-add button, Today button
+  accent: '#0aa2e6'        # today accent, quick-add button, return-to-today button, countdown
   today: '#e8f4fd'         # today column background
   dayBackground: '#f5f5f7' # day column + legend chip background
   cardBackground: '#ffffff'
@@ -136,12 +141,29 @@ colors:
 
 | Key | Overrides |
 |---|---|
-| `accent` | Today accent, quick-add FAB, Today button, arrow hover. |
+| `accent` | Today accent, quick-add FAB, return-to-today button, next-event countdown, arrow hover. |
 | `today` | Today column background tint. |
 | `dayBackground` | Day column and legend chip background. |
 | `cardBackground` | Card and pill background base. |
 | `text` | Primary text. |
 | `secondaryText` | Day names, event times, subtitles. |
+
+## Status header
+
+When `showClock` is on (default), the top-left of the card carries a bold live
+**clock**, today's **date**, and the **next upcoming event** with a countdown
+(`in 30m`, `in 2h 15m`, `in 3d`). The clock ticks on its natural boundary —
+every minute, or every second if `clockFormat` includes seconds.
+
+The next-event picker prefers the nearest **timed** event and skips all-day
+events, with one exception: once no timed events remain **today**, an all-day
+event starting **tomorrow** is surfaced (shown as `Tomorrow`) — the natural
+"what's next" when the day is done. The clock/date/next-event always reflect
+**now**, independent of how far the strip is scrolled.
+
+The **return-to-today** glyph (part of `showNavigation`) appears only when today
+has scrolled out of view; its arrow points toward today, and clicking it jumps
+straight back — from any distance, not just the current week.
 
 ## Managing events
 
