@@ -1,6 +1,7 @@
 import { LitElement, html } from 'lit';
 import { state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
+import { ifDefined } from 'lit/directives/if-defined.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { DateTime } from 'luxon';
 import { handleAction } from 'custom-card-helpers';
@@ -609,6 +610,25 @@ export class CalendarWeekViewCard extends LitElement {
     this._scheduleTick();
   }
 
+  /**
+   * Close the details popup and hand off to Home Assistant's more-info for the
+   * weather entity. Closing first avoids stacking two modal dialogs; more-info
+   * only fires when the entity is actually loaded in `hass`.
+   */
+  private _openWeatherInfo(): void {
+    const id = this._config.weather?.entity;
+    if (!id || !this._hass?.states[id]) return;
+    this._closeDetails();
+    this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: id }, bubbles: true, composed: true }));
+  }
+
+  private _onWeatherKey(ev: KeyboardEvent): void {
+    if (ev.key === 'Enter' || ev.key === ' ') {
+      ev.preventDefault();
+      this._openWeatherInfo();
+    }
+  }
+
   /** Delete an event via the HA websocket, scoping recurring instances per the user's choice. */
   private async _deleteEvent(e: WeekEvent, scope: RecurrenceScope): Promise<void> {
     if (!e.uid) return;
@@ -1193,7 +1213,7 @@ export class CalendarWeekViewCard extends LitElement {
     if (samples.length === 0) return '';
     const round = cfg.weather.roundTemperature ?? true;
     const showTemp = cfg.weather.showTemperature !== false;
-    const dayPart: Record<string, string> = { today: 'Today', tonight: 'Tonight', tomorrow: 'Tomorrow' };
+    const dayPart: Record<string, string> = { eventday: 'Event day', night: 'Night', nextday: 'Next day' };
     const labelOf = (s: WeatherSample) =>
       s.kind === 'clock' ? this._fmt(s.time, cfg.timeFormat ?? 'HH:mm') : dayPart[s.kind];
     const temp = (t: number) => (round ? Math.round(t) : t);
@@ -1217,7 +1237,15 @@ export class CalendarWeekViewCard extends LitElement {
               </div>`,
             )}
           </div>`;
-    return html`<div class="wx-strip">
+    const canOpen = !!this._hass?.states[cfg.weather.entity];
+    return html`<div
+      class=${classMap({ 'wx-strip': true, clickable: canOpen })}
+      role=${ifDefined(canOpen ? 'button' : undefined)}
+      tabindex=${ifDefined(canOpen ? 0 : undefined)}
+      title=${ifDefined(canOpen ? 'Show weather details' : undefined)}
+      @click=${canOpen ? () => this._openWeatherInfo() : undefined}
+      @keydown=${canOpen ? (ev: KeyboardEvent) => this._onWeatherKey(ev) : undefined}
+    >
       <div class="wx-strip-h"><ha-icon icon=${weatherIcon(samples[0].condition)}></ha-icon>${head}</div>
       ${body}
     </div>`;

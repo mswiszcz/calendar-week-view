@@ -77,7 +77,7 @@ export function weatherLabel(condition: string): string {
   return LABELS[condition] ?? 'Weather';
 }
 
-export type WeatherSampleKind = 'clock' | 'today' | 'tonight' | 'tomorrow';
+export type WeatherSampleKind = 'clock' | 'eventday' | 'night' | 'nextday';
 
 export interface WeatherSample {
   kind: WeatherSampleKind;
@@ -91,9 +91,10 @@ export interface WeatherSample {
  *
  * Timed events up to an hour resolve to a single sample at the start; longer ones
  * sample the start, midpoint, and end. All-day and multi-day events swap to a
- * near-term day/night outlook (today, tonight, tomorrow) while they overlap the
- * next day. Samples whose hour is missing — already past, or beyond the forecast
- * horizon — are dropped, so the result holds 0…3 entries.
+ * near-term outlook anchored to the event's own day — event day, night, next day.
+ * A future event samples its own day; one already in progress falls back to today,
+ * since its start day's forecast is gone. Samples whose hour is missing — already
+ * past, or beyond the forecast horizon — are dropped, so the result holds 0…3 entries.
  */
 export function weatherSamplesForEvent(
   event: WeekEvent,
@@ -102,12 +103,12 @@ export function weatherSamplesForEvent(
 ): WeatherSample[] {
   const targets: { kind: WeatherSampleKind; time: DateTime }[] = [];
   if (event.allDay || event.multiDay) {
-    const midnight = now.startOf('day');
-    if (event.originalEnd <= now || event.originalStart.startOf('day') >= midnight.plus({ days: 2 })) return [];
-    const noon = midnight.plus({ hours: 12 });
-    targets.push({ kind: 'today', time: now > noon ? now.startOf('hour') : noon });
-    targets.push({ kind: 'tonight', time: midnight.plus({ hours: 21 }) });
-    targets.push({ kind: 'tomorrow', time: midnight.plus({ days: 1, hours: 12 }) });
+    if (event.originalEnd <= now) return [];
+    const anchor = DateTime.max(now.startOf('day'), event.originalStart.startOf('day'));
+    const noon = anchor.plus({ hours: 12 });
+    targets.push({ kind: 'eventday', time: now > noon ? now.startOf('hour') : noon });
+    targets.push({ kind: 'night', time: anchor.plus({ hours: 21 }) });
+    targets.push({ kind: 'nextday', time: anchor.plus({ days: 1, hours: 12 }) });
   } else {
     const { originalStart: start, originalEnd: end } = event;
     targets.push({ kind: 'clock', time: start });

@@ -135,7 +135,10 @@ same hourly forecast:
 
 - **Up to an hour** — one line, at the start.
 - **Longer** — three tiles sampling the **start, middle, and end**.
-- **All-day / multi-day** — a **today · tonight · tomorrow** outlook.
+- **All-day / multi-day** — an **event day · night · next day** outlook,
+  anchored to the event's own day (an in-progress event falls back to today).
+
+Where the weather entity is loaded, clicking the strip opens its more-info dialog.
 
 > **Weather horizon.** Hourly forecasts typically extend only ~24–48 hours (a
 > few days for some integrations). Grid glyphs show for timed events only; the
