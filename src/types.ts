@@ -123,6 +123,17 @@ export interface WeekEvent {
 /** Scope for mutating a recurring event, matching HA's native calendar dialog. */
 export type RecurrenceScope = 'this' | 'future' | 'all';
 
+/**
+ * Live status of an event relative to now, for the details popup's countdown hero.
+ * `progress` is the elapsed fraction (0…1) while the event is happening, else null.
+ */
+export interface EventStatus {
+  phase: 'upcoming' | 'now' | 'ended';
+  headline: string;
+  detail: string;
+  progress: number | null;
+}
+
 export interface DayColumn {
   date: DateTime;
   isToday: boolean;

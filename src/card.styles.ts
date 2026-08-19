@@ -925,11 +925,18 @@ export const styles = css`
     background: var(--cwv-now);
   }
 
-  .details {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    min-width: 300px;
+  /* event-details popup — Direction D "gate time": the calendar colour bands the
+     header and carries the live countdown; a calm body of when / where / description. */
+  .details-dialog {
+    --dialog-content-padding: 0;
+    --mdc-dialog-min-width: 300px;
+    --mdc-dialog-max-width: 410px;
+    --ha-dialog-border-radius: 18px;
+    --mdc-dialog-container-shape: 18px;
+  }
+  .gate {
+    border-radius: 18px;
+    overflow: hidden;
     animation: det-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
   @keyframes det-in {
@@ -939,116 +946,247 @@ export const styles = css`
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .details {
+    .gate {
       animation: none;
     }
   }
-  .details ha-alert {
-    display: block;
-  }
 
-  /* calendar identity chip — the event's color is the modal's signature */
-  .det-head {
+  /* colour band header — the event's calendar colour is the popup's signature */
+  .gate-head {
+    padding: 18px 22px 22px;
+    text-align: center;
+    color: #fff;
+    text-shadow: 0 1px 0px rgba(0, 0, 0, 0.2);
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--c, var(--primary-color)) 90%, #0b1a12),
+      color-mix(in srgb, var(--c, var(--primary-color)) 64%, #0a1220)
+    );
+  }
+  .gate-cal {
     display: inline-flex;
     align-items: center;
-    gap: 9px;
-    align-self: flex-start;
-    padding: 6px 12px 6px 10px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--c, var(--primary-color)) 14%, var(--card-background-color));
-  }
-  .det-dot {
-    width: 11px;
-    height: 11px;
-    border-radius: 50%;
-    background: var(--c, var(--primary-color));
-    flex: none;
-  }
-  .det-cal {
-    font-size: 13px;
+    gap: 7px;
+    font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.01em;
-    color: var(--primary-text-color);
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.86);
   }
-  .det-recur {
+  .gate-rep {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    font-size: 11.5px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    color: color-mix(in srgb, var(--c, var(--primary-color)) 45%, var(--primary-text-color));
+    gap: 3px;
+    padding-left: 8px;
+    margin-left: 4px;
+    border-left: 1px solid rgba(255, 255, 255, 0.32);
+    letter-spacing: 0.04em;
   }
-  .det-recur ha-icon {
-    --mdc-icon-size: 15px;
+  .gate-rep ha-icon {
+    --mdc-icon-size: 14px;
+  }
+  .gate-title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin: 10px 0 16px;
+  }
+  .gate-count {
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .gate-big {
+    font-size: 40px;
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    color: #fff;
+  }
+  .gate-lbl {
+    display: block;
+    margin-top: 9px;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.82);
+  }
+  /* elapsed bar rides the band; only rendered while the event is happening now */
+  .gate-prog {
+    height: 5px;
+    margin: 16px 8px 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.24);
+    overflow: hidden;
+  }
+  .gate-prog i {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: #fff;
   }
 
-  /* the hero: date + time carried at the same weight the day columns use */
-  .det-when {
+  .gate-body {
+    padding: 8px 20px 6px;
+    display: flex;
+    flex-direction: column;
+  }
+  .gate-body ha-alert {
+    display: block;
+    margin-top: 10px;
+  }
+  .gate-row {
     display: flex;
     align-items: center;
-    gap: 13px;
+    gap: 12px;
+    padding: 9px 0;
   }
-  .det-when > ha-icon {
-    --mdc-icon-size: 26px;
-    color: var(--c, var(--primary-color));
+  .gate-row > ha-icon {
+    --mdc-icon-size: 20px;
+    color: var(--secondary-text-color);
     flex: none;
   }
-  .when-text {
+  .gate-rt {
     display: flex;
     flex-direction: column;
     gap: 2px;
     min-width: 0;
   }
-  .when-main {
-    font-size: 20px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    line-height: 1.15;
-    color: var(--primary-text-color);
-  }
-  .when-sub {
-    font-size: 15px;
+  .gate-rt b {
+    font-size: 14.5px;
     font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .gate-rt small {
+    font-size: 12.5px;
+    color: var(--secondary-text-color);
     font-variant-numeric: tabular-nums;
-    color: var(--secondary-text-color);
   }
-
-  .det-meta {
-    display: flex;
+  .gate-rt.where {
+    flex-direction: row;
     align-items: center;
-    gap: 10px;
-    font-size: 13.5px;
-    color: var(--secondary-text-color);
+    gap: 8px;
+    flex-wrap: wrap;
   }
-  .det-meta ha-icon {
-    --mdc-icon-size: 19px;
-    color: var(--secondary-text-color);
-    flex: none;
+  .gate-maps {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--c, var(--primary-color));
+    padding: 3px 9px 3px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--c, var(--primary-color)) 14%, transparent);
   }
-  .det-desc {
+  .gate-maps:hover {
+    background: color-mix(in srgb, var(--c, var(--primary-color)) 22%, transparent);
+  }
+  .gate-maps ha-icon {
+    --mdc-icon-size: 14px;
+  }
+  .gate-desc {
     font-size: 13.5px;
     line-height: 1.55;
     color: var(--primary-text-color);
     white-space: pre-line;
-    padding-top: 12px;
+    padding-top: 14px;
+    margin-top: 8px;
     border-top: 1px solid var(--divider-color);
   }
 
-  mwc-button.danger {
-    --mdc-theme-primary: var(--error-color, #db4437);
+  .gate-acts,
+  .gate-scope {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 14px;
+    border-top: 1px solid var(--divider-color);
   }
-  mwc-button ha-icon {
+  .gate-spacer {
+    margin-left: auto;
+  }
+  .gate-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    padding: 8px 13px;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    color: var(--primary-color);
+    cursor: pointer;
+    transition: background 0.14s ease;
+  }
+  .gate-btn ha-icon {
     --mdc-icon-size: 18px;
   }
-  .confirm-note {
-    margin-top: 2px;
-    padding: 10px 12px;
-    border-radius: 10px;
+  .gate-btn:hover {
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  }
+  .gate-btn.ghost {
+    color: var(--secondary-text-color);
+  }
+  .gate-btn.ghost:hover {
+    background: var(--hover-tint);
+    color: var(--primary-text-color);
+  }
+  .gate-btn.danger {
+    color: var(--error-color, #db4437);
+  }
+  .gate-btn.danger:hover {
+    background: color-mix(in srgb, var(--error-color, #db4437) 13%, transparent);
+  }
+
+  .gate-confirm {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--divider-color);
+  }
+  .gate-confirm-note {
+    padding: 12px 16px 6px;
     font-size: 13px;
     font-weight: 600;
     line-height: 1.4;
     color: color-mix(in srgb, var(--error-color, #db4437) 90%, var(--primary-text-color));
-    background: color-mix(in srgb, var(--error-color, #db4437) 12%, var(--card-background-color));
+  }
+  .gate-scope {
+    border-top: none;
+  }
+  .gate-scope.col {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 4px 14px 12px;
+  }
+  .gate-scope-btn {
+    text-align: left;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--divider-color);
+    background: var(--neutral-tile);
+    color: var(--primary-text-color);
+    cursor: pointer;
+    transition:
+      background 0.14s ease,
+      border-color 0.14s ease;
+  }
+  .gate-scope-btn:hover {
+    border-color: color-mix(in srgb, var(--error-color, #db4437) 45%, var(--divider-color));
+    background: color-mix(in srgb, var(--error-color, #db4437) 8%, transparent);
+  }
+  .gate-scope-btn.danger {
+    color: var(--error-color, #db4437);
+  }
+  .gate-scope.col .gate-btn.ghost {
+    justify-content: center;
+    margin-top: 2px;
   }
 `;

@@ -23,7 +23,9 @@ import {
   computeWeekStart,
   dayCountFor,
   edgeIndex,
+  eventStatus,
   formatCountdown,
+  formatEventDuration,
   lastVisibleIndex,
   layoutDayEvents,
   lockedDays,
@@ -174,7 +176,9 @@ export class CalendarWeekViewCard extends LitElement {
    */
   private _scheduleTick(): void {
     if (this._clockTimer) window.clearTimeout(this._clockTimer);
-    if (!this._hass || !this._headerLive()) return;
+    // The open details popup also needs ticks to advance its live countdown, even
+    // when the header itself is static.
+    if (!this._hass || (!this._headerLive() && !this._detailsEvent)) return;
     const showsSeconds = this._config?.showClock !== false && /[sS]/.test(this._config?.clockFormat ?? 'HH:mm');
     const now = this._now();
     const ms = showsSeconds ? 1000 - now.millisecond : (60 - now.second) * 1000 - now.millisecond;
@@ -569,12 +573,14 @@ export class CalendarWeekViewCard extends LitElement {
     this._detailsEvent = e;
     this._confirmingDelete = false;
     this._deleteError = '';
+    this._scheduleTick();
   }
 
   private _closeDetails(): void {
     this._detailsEvent = null;
     this._confirmingDelete = false;
     this._deleteError = '';
+    this._scheduleTick();
   }
 
   /** Delete an event via the HA websocket, scoping recurring instances per the user's choice. */
@@ -1069,92 +1075,125 @@ export class CalendarWeekViewCard extends LitElement {
     `;
   }
 
+  /**
+   * The event-details popup ("gate time"): the calendar colour bands the header
+   * and carries a live countdown; a calm body lists when / where / description,
+   * then Close · Edit · Delete (delete keeps HA's recurrence-scope choice).
+   */
   private _renderDetails() {
     const e = this._detailsEvent;
     if (!e) return html``;
-    const dateLine = this._fmt(e.start, 'cccc d LLLL');
-    const timeLine = e.allDay ? 'All day' : `${this._fmt(e.start, 'HH:mm')} – ${this._fmt(e.end, 'HH:mm')}`;
+    const timeFmt = this._config.timeFormat ?? 'HH:mm';
+    const status = eventStatus(this._now(), e);
+    const dateLine = this._fmt(e.originalStart, 'cccc d LLLL');
+    const timeLine = e.allDay
+      ? 'All day'
+      : `${this._fmt(e.originalStart, timeFmt)} – ${this._fmt(e.originalEnd, timeFmt)}`;
+    const durationLine = e.allDay ? '' : formatEventDuration(e);
     const canDelete = this._canMutate(e, CalendarFeature.DELETE);
     const canEdit = this._canMutate(e, CalendarFeature.UPDATE);
     return html`
-      <ha-dialog open @closed=${() => this._closeDetails()} .heading=${e.summary}>
-        <div class="details" style="--c:${e.color}">
-          <div class="det-head">
-            <span class="det-dot"></span>
-            <span class="det-cal">${e.calendarName}</span>
-            ${e.recurring ? html`<span class="det-recur"><ha-icon icon="mdi:repeat"></ha-icon>Repeats</span>` : ''}
+      <ha-dialog open hideActions class="details-dialog" aria-label=${e.summary} @closed=${() => this._closeDetails()}>
+        <div class="gate" style="--c:${e.color}">
+          <div class="gate-head">
+            <div class="gate-cal">
+              <span>${e.calendarName}</span>
+              ${e.recurring ? html`<span class="gate-rep"><ha-icon icon="mdi:repeat"></ha-icon>Repeats</span>` : ''}
+            </div>
+            <div class="gate-title">${e.summary}</div>
+            <div class="gate-count">
+              <span class="gate-big">${status.headline}</span>
+              <span class="gate-lbl">${status.detail}</span>
+            </div>
+            ${
+              status.progress !== null
+                ? html`<div class="gate-prog"><i style="width:${Math.round(status.progress * 100)}%"></i></div>`
+                : ''
+            }
           </div>
-          <div class="det-when">
-            <ha-icon icon=${e.allDay ? 'mdi:calendar-blank' : 'mdi:clock-time-four-outline'}></ha-icon>
-            <span class="when-text">
-              <span class="when-main">${dateLine}</span>
-              <span class="when-sub">${timeLine}</span>
-            </span>
+          <div class="gate-body">
+            <div class="gate-row">
+              <ha-icon icon=${e.allDay ? 'mdi:calendar-blank-outline' : 'mdi:calendar-clock-outline'}></ha-icon>
+              <div class="gate-rt">
+                <b>${dateLine}</b>
+                <small>${timeLine}${durationLine ? ` · ${durationLine}` : ''}</small>
+              </div>
+            </div>
+            ${e.location ? this._renderLocationRow(e.location) : ''}
+            ${e.description ? html`<div class="gate-desc">${e.description}</div>` : ''}
+            ${this._deleteError ? html`<ha-alert alert-type="error">${this._deleteError}</ha-alert>` : ''}
           </div>
-          ${
-            e.location
-              ? html`<div class="det-meta">
-                  <ha-icon icon="mdi:map-marker-outline"></ha-icon><span>${e.location}</span>
-                </div>`
-              : ''
-          }
-          ${e.description ? html`<div class="det-desc">${e.description}</div>` : ''}
-          ${this._deleteError ? html`<ha-alert alert-type="error">${this._deleteError}</ha-alert>` : ''}
-          ${
-            this._confirmingDelete
-              ? html`<div class="confirm-note">
-                  ${
-                    e.recurring
-                      ? 'This event repeats — choose which occurrences to delete.'
-                      : 'Delete this event? This cannot be undone.'
-                  }
-                </div>`
-              : ''
-          }
+          ${this._confirmingDelete ? this._renderDeleteConfirm(e) : this._renderDetailActions(e, canEdit, canDelete)}
         </div>
-        ${this._confirmingDelete ? this._renderDeleteConfirm(e) : this._renderDetailActions(e, canEdit, canDelete)}
       </ha-dialog>
+    `;
+  }
+
+  /** Location row with a link that opens the place in the viewer's maps app. */
+  private _renderLocationRow(location: string) {
+    const href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+    return html`
+      <div class="gate-row">
+        <ha-icon icon="mdi:map-marker-outline"></ha-icon>
+        <div class="gate-rt where">
+          <b>${location}</b>
+          <a class="gate-maps" href=${href} target="_blank" rel="noopener noreferrer">
+            <ha-icon icon="mdi:open-in-new"></ha-icon>Maps
+          </a>
+        </div>
+      </div>
     `;
   }
 
   private _renderDetailActions(e: WeekEvent, canEdit: boolean, canDelete: boolean) {
     return html`
-      <mwc-button slot="secondaryAction" dialogAction="close">Close</mwc-button>
-      ${
-        canEdit
-          ? html`<mwc-button slot="secondaryAction" @click=${() => this._openEdit(e)}>
-              <ha-icon icon="mdi:pencil"></ha-icon>&nbsp;Edit
-            </mwc-button>`
-          : ''
-      }
-      ${
-        canDelete
-          ? html`<mwc-button slot="primaryAction" class="danger" @click=${() => (this._confirmingDelete = true)}>
-              <ha-icon icon="mdi:trash-can-outline"></ha-icon>&nbsp;Delete
-            </mwc-button>`
-          : ''
-      }
+      <div class="gate-acts">
+        <button class="gate-btn ghost" @click=${() => this._closeDetails()}>
+          <ha-icon icon="mdi:close"></ha-icon>Close
+        </button>
+        <span class="gate-spacer"></span>
+        ${
+          canEdit
+            ? html`<button class="gate-btn" @click=${() => this._openEdit(e)}>
+                <ha-icon icon="mdi:pencil"></ha-icon>Edit
+              </button>`
+            : ''
+        }
+        ${
+          canDelete
+            ? html`<button class="gate-btn danger" @click=${() => (this._confirmingDelete = true)}>
+                <ha-icon icon="mdi:trash-can-outline"></ha-icon>Delete
+              </button>`
+            : ''
+        }
+      </div>
     `;
   }
 
   private _renderDeleteConfirm(e: WeekEvent) {
-    if (e.recurring) {
-      return html`
-        <mwc-button slot="secondaryAction" @click=${() => (this._confirmingDelete = false)}>Cancel</mwc-button>
-        <mwc-button slot="primaryAction" @click=${() => this._deleteEvent(e, 'this')}>This event</mwc-button>
-        <mwc-button slot="primaryAction" @click=${() => this._deleteEvent(e, 'future')}
-          >This &amp; following</mwc-button
-        >
-        <mwc-button slot="primaryAction" class="danger" @click=${() => this._deleteEvent(e, 'all')}
-          >All events</mwc-button
-        >
-      `;
-    }
+    const note = e.recurring
+      ? 'This event repeats — choose which occurrences to delete.'
+      : 'Delete this event? This cannot be undone.';
     return html`
-      <mwc-button slot="secondaryAction" @click=${() => (this._confirmingDelete = false)}>Cancel</mwc-button>
-      <mwc-button slot="primaryAction" class="danger" @click=${() => this._deleteEvent(e, 'all')}>
-        Delete event
-      </mwc-button>
+      <div class="gate-confirm">
+        <div class="gate-confirm-note">${note}</div>
+        ${
+          e.recurring
+            ? html`<div class="gate-scope col">
+                <button class="gate-scope-btn" @click=${() => this._deleteEvent(e, 'this')}>This event</button>
+                <button class="gate-scope-btn" @click=${() => this._deleteEvent(e, 'future')}>
+                  This &amp; following
+                </button>
+                <button class="gate-scope-btn danger" @click=${() => this._deleteEvent(e, 'all')}>All events</button>
+                <button class="gate-btn ghost" @click=${() => (this._confirmingDelete = false)}>Cancel</button>
+              </div>`
+            : html`<div class="gate-scope">
+                <button class="gate-btn ghost" @click=${() => (this._confirmingDelete = false)}>Cancel</button>
+                <span class="gate-spacer"></span>
+                <button class="gate-btn danger" @click=${() => this._deleteEvent(e, 'all')}>Delete</button>
+              </div>`
+        }
+      </div>
     `;
   }
 }
