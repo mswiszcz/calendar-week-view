@@ -56,6 +56,7 @@ export class CalendarWeekViewCard extends LitElement {
   private _loading = false;
   private _refetchQueued = false;
   private _needsScroll = true;
+  private _carEdge: 'start' | 'end' | null = null;
   private _timer?: number;
   private _weatherUnsub?: () => void;
   private _weatherPending = false;
@@ -217,7 +218,31 @@ export class CalendarWeekViewCard extends LitElement {
   }
 
   private _shiftWeek(offset: number): void {
+    this._carEdge = null;
     this._weekOffset = offset === 0 ? 0 : this._weekOffset + offset;
+    this._needsScroll = true;
+    void this._fetchAndBuild();
+  }
+
+  /**
+   * Page the day strip by one viewport. At either end it rolls into the
+   * neighbouring week and lands on the opposite edge, so paging feels endless.
+   * Native touch/trackpad swiping of the strip is unaffected.
+   */
+  private _carousel(dir: 1 | -1): void {
+    const strip = this.renderRoot.querySelector<HTMLElement>('.week');
+    if (!strip) return;
+    const atStart = strip.scrollLeft <= 8;
+    const atEnd = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 8;
+    if (dir === 1 && atEnd) return this._crossWeek(1, 'start');
+    if (dir === -1 && atStart) return this._crossWeek(-1, 'end');
+    strip.scrollBy({ left: dir * strip.clientWidth, behavior: 'smooth' });
+  }
+
+  /** Advance a full week and, after the new columns render, jump to the given edge. */
+  private _crossWeek(dir: 1 | -1, edge: 'start' | 'end'): void {
+    this._carEdge = edge;
+    this._weekOffset += dir;
     this._needsScroll = true;
     void this._fetchAndBuild();
   }
@@ -290,6 +315,13 @@ export class CalendarWeekViewCard extends LitElement {
     if (!this._needsScroll) return;
     const strip = this.renderRoot.querySelector<HTMLElement>('.week');
     if (!strip || this._columns.length === 0) return;
+    // Crossing a week boundary via the carousel arrows lands on the opposite edge.
+    if (this._carEdge) {
+      strip.scrollLeft = this._carEdge === 'end' ? strip.scrollWidth : 0;
+      this._carEdge = null;
+      this._needsScroll = false;
+      return;
+    }
     const todayIndex = this._columns.findIndex((c) => c.isToday);
     const visible = this._config.visibleDays ?? 3;
     const startIndex = this._weekOffset === 0 ? autoScrollStartIndex(todayIndex, this._columns.length, visible) : 0;
@@ -319,7 +351,23 @@ export class CalendarWeekViewCard extends LitElement {
           ${this._weatherError ? html`<ha-alert alert-type="warning">${this._weatherError}</ha-alert>` : ''}
           ${cfg.title ? html`<div class="card-title">${cfg.title}</div>` : ''}
           <div class="topbar">${this._renderNav()} ${this._renderLegend()}</div>
-          <div class="week">${this._columns.map((col) => this._renderDay(col))}</div>
+          <div class="carousel">
+            ${
+              cfg.showNavigation === false
+                ? ''
+                : html`<button class="car-arrow left" aria-label="Previous days" @click=${() => this._carousel(-1)}>
+                    <ha-icon icon="mdi:chevron-left"></ha-icon>
+                  </button>`
+            }
+            <div class="week">${this._columns.map((col) => this._renderDay(col))}</div>
+            ${
+              cfg.showNavigation === false
+                ? ''
+                : html`<button class="car-arrow right" aria-label="Next days" @click=${() => this._carousel(1)}>
+                    <ha-icon icon="mdi:chevron-right"></ha-icon>
+                  </button>`
+            }
+          </div>
         </div>
         ${
           cfg.addEvents && this._writableCalendars().length > 0
