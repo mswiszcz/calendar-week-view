@@ -2,12 +2,10 @@ import { DateTime } from 'luxon';
 import { describe, expect, test } from 'vitest';
 import type { CalendarConfig, CalendarEventInput } from '@/types';
 import {
-  autoScrollStartIndex,
   buildDayColumns,
   CalendarFeature,
   computeWeekStart,
   dayCountFor,
-  formatWeekLabel,
   isAllDay,
   normalizeEvent,
   supportsFeature,
@@ -58,29 +56,6 @@ describe('weekDays / dayCountFor', () => {
   test('without weekend gives 5 days', () => {
     expect(dayCountFor(true)).toBe(5);
     expect(weekDays(computeWeekStart(now, 'monday', 0), 5)).toHaveLength(5);
-  });
-});
-
-describe('autoScrollStartIndex', () => {
-  test('when today mid-week starts at today', () => {
-    expect(autoScrollStartIndex(2, 7, 3)).toBe(2); // Wed
-  });
-  test('when today is last day shifts back by visible-1', () => {
-    expect(autoScrollStartIndex(6, 7, 3)).toBe(4); // Sun → show Fri..Sun
-  });
-  test('when today almost last shifts by one', () => {
-    expect(autoScrollStartIndex(5, 7, 3)).toBe(4); // Sat → show Fri..Sun
-  });
-  test('when today not in week returns 0', () => {
-    expect(autoScrollStartIndex(-1, 7, 3)).toBe(0);
-  });
-});
-
-describe('formatWeekLabel', () => {
-  test('renders a compact range', () => {
-    const label = formatWeekLabel(DateTime.fromISO('2026-08-17'), 7);
-    expect(label).toContain('17');
-    expect(label).toContain('23');
   });
 });
 

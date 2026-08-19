@@ -104,46 +104,7 @@ export const styles = css`
     align-items: center;
     gap: 10px;
   }
-  .rbtn {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: 1px solid var(--divider-color);
-    background: var(--card-background-color);
-    color: var(--primary-text-color);
-    cursor: pointer;
-    display: grid;
-    place-items: center;
-    transition:
-      background 0.15s ease,
-      border-color 0.15s ease;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  }
-  .rbtn:hover {
-    background: var(--hover-tint);
-    border-color: color-mix(in srgb, var(--primary-color) 40%, var(--divider-color));
-  }
-  .rbtn ha-icon {
-    --mdc-icon-size: 20px;
-  }
-  .range {
-    font-size: 20px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    font-variant-numeric: tabular-nums;
-    min-width: 186px;
-    text-align: center;
-  }
-  .range small {
-    display: block;
-    font-size: 11.5px;
-    font-weight: 600;
-    letter-spacing: 0.03em;
-    color: var(--secondary-text-color);
-    text-transform: uppercase;
-    margin-top: 2px;
-  }
-  .today-reset {
+  .today-btn {
     font: inherit;
     font-size: 13px;
     font-weight: 600;
@@ -151,12 +112,12 @@ export const styles = css`
     background: var(--primary-color);
     cursor: pointer;
     border: none;
-    padding: 9px 16px;
+    padding: 9px 18px;
     border-radius: 999px;
     box-shadow: 0 1px 2px color-mix(in srgb, var(--primary-color) 30%, transparent);
     transition: filter 0.15s ease;
   }
-  .today-reset:hover {
+  .today-btn:hover {
     filter: brightness(1.06);
   }
   .legend {
@@ -189,20 +150,22 @@ export const styles = css`
     opacity: 0.45;
   }
 
-  /* carousel — arrows flank the day strip; the strip itself swipes/scrolls */
+  /* carousel — arrows float over the strip's edges; the strip fills the width */
   .carousel {
     position: relative;
     flex: 1;
     min-height: 0;
     display: flex;
     align-items: stretch;
-    gap: 6px;
   }
+  /* Each arrow is centered on a strip edge, so half overlaps the edge day column
+     and half floats over the card gutter. */
   .car-arrow {
-    flex: none;
-    align-self: center;
-    width: 38px;
-    height: 38px;
+    position: absolute;
+    top: 50%;
+    z-index: 4;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     border: 1px solid var(--divider-color);
     background: var(--card-background-color);
@@ -210,19 +173,35 @@ export const styles = css`
     cursor: pointer;
     display: grid;
     place-items: center;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
     transition:
       background 0.15s ease,
       transform 0.15s ease,
       border-color 0.15s ease;
   }
+  .car-arrow.left {
+    left: 0;
+    transform: translate(-50%, -50%);
+  }
+  .car-arrow.right {
+    right: 0;
+    transform: translate(50%, -50%);
+  }
   .car-arrow:hover {
-    transform: scale(1.07);
     background: var(--hover-tint);
     border-color: color-mix(in srgb, var(--primary-color) 40%, var(--divider-color));
   }
-  .car-arrow:active {
-    transform: scale(0.97);
+  .car-arrow.left:hover {
+    transform: translate(-50%, -50%) scale(1.07);
+  }
+  .car-arrow.right:hover {
+    transform: translate(50%, -50%) scale(1.07);
+  }
+  .car-arrow.left:active {
+    transform: translate(-50%, -50%) scale(0.97);
+  }
+  .car-arrow.right:active {
+    transform: translate(50%, -50%) scale(0.97);
   }
   .car-arrow ha-icon {
     --mdc-icon-size: 22px;
@@ -277,11 +256,11 @@ export const styles = css`
     line-height: 1;
     gap: 5px;
   }
-  .dow {
+  .dmeta {
     font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.3;
     color: var(--secondary-text-color);
   }
   .dnum {
@@ -290,7 +269,7 @@ export const styles = css`
     letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
   }
-  .day.today .dow,
+  .day.today .dmeta,
   .day.today .dnum {
     color: var(--primary-color);
   }

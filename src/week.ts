@@ -49,21 +49,6 @@ export function windowDays(firstWeekStart: DateTime, weeks: number, dayCount: nu
   return days;
 }
 
-/** First visible column index so today stays on screen within a `visibleDays` window. */
-export function autoScrollStartIndex(todayIndex: number, dayCount: number, visibleDays: number): number {
-  if (todayIndex < 0) return 0;
-  const max = Math.max(0, dayCount - visibleDays);
-  return Math.min(Math.max(todayIndex, 0), max);
-}
-
-export function formatWeekLabel(weekStart: DateTime, dayCount: number): string {
-  const end = weekStart.plus({ days: dayCount - 1 });
-  if (weekStart.month === end.month) {
-    return `${weekStart.day} – ${end.day} ${end.toFormat('LLL')}`;
-  }
-  return `${weekStart.toFormat('d LLL')} – ${end.toFormat('d LLL')}`;
-}
-
 /** All-day when both ends are date-only (or the span is whole-day aligned ≥24h). */
 export function isAllDay(start: DateTime, end: DateTime): boolean {
   const startMidnight = start.hasSame(start.startOf('day'), 'millisecond');

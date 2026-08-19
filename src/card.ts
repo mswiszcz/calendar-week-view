@@ -14,12 +14,10 @@ import type {
   WeekEvent,
 } from '@/types';
 import {
-  autoScrollStartIndex,
   buildDayColumns,
   CalendarFeature,
   computeWeekStart,
   dayCountFor,
-  formatWeekLabel,
   normalizeEvent,
   supportsFeature,
   windowDays,
@@ -50,7 +48,6 @@ export class CalendarWeekViewCard extends LitElement {
   @state() private _config!: CardConfig;
   @state() private _columns: DayColumn[] = [];
   @state() private _windowOffset = -BUFFER_WEEKS;
-  @state() private _viewWeekStart?: DateTime;
   @state() private _hiddenCalendars = new Set<string>();
   @state() private _forecast = new Map<string, ForecastSlot>();
   @state() private _error = '';
@@ -246,41 +243,31 @@ export class CalendarWeekViewCard extends LitElement {
     return 0;
   }
 
-  /** Pixel width of one week of columns, for week-stepping the strip. */
-  private _weekWidth(strip: HTMLElement): number {
-    const count = dayCountFor(this._config.hideWeekend ?? false);
-    if (strip.children.length <= count) return strip.clientWidth;
-    return this._childLeft(strip, count) - this._childLeft(strip, 0);
-  }
-
   /** Page the strip by one viewport; already-rendered buffer days scroll into view. */
   private _carousel(dir: 1 | -1): void {
     this._strip()?.scrollBy({ left: dir * (this._strip()?.clientWidth ?? 0), behavior: 'smooth' });
   }
 
-  private _stepWeek(dir: 1 | -1): void {
-    const strip = this._strip();
-    if (!strip) return;
-    strip.scrollBy({ left: dir * this._weekWidth(strip), behavior: 'smooth' });
-  }
-
-  /** Jump back to today: scroll there if it is loaded, otherwise recenter the window on it. */
+  /** Jump to today: scroll it to the left edge if loaded, otherwise recenter the window on it. */
   private _goToday(): void {
     const strip = this._strip();
     const idx = this._columns.findIndex((c) => c.isToday);
     if (strip && idx >= 0) {
-      const visible = this._config.visibleDays ?? 3;
-      const target = autoScrollStartIndex(idx, this._columns.length, visible);
-      strip.scrollTo({ left: this._childLeft(strip, target), behavior: 'smooth' });
+      strip.scrollTo({ left: this._childLeft(strip, idx), behavior: 'smooth' });
       return;
     }
     this._windowOffset = -BUFFER_WEEKS;
     this._scrollToToday = true;
-    this._viewWeekStart = undefined;
     void this._fetchAndBuild();
   }
 
-  /** Recenter and relabel only once scrolling settles, so an active page animation is never cut short. */
+  /** Format a DateTime with the configured locale applied, if any. */
+  private _fmt(dt: DateTime, fmt: string): string {
+    const loc = this._config.locale;
+    return (loc ? dt.setLocale(loc) : dt).toFormat(fmt);
+  }
+
+  /** Recenter the window only once scrolling settles, so an active page animation is never cut short. */
   private _onScroll(): void {
     if (this._scrollTimer) clearTimeout(this._scrollTimer);
     this._scrollTimer = window.setTimeout(() => void this._afterScroll(), 120);
@@ -290,8 +277,6 @@ export class CalendarWeekViewCard extends LitElement {
     const strip = this._strip();
     if (!strip || this._columns.length === 0 || this._loading) return;
     const idx = this._leftmostIndex(strip);
-    const weekStart = computeWeekStart(this._columns[idx].date, this._config.weekStartsOn ?? 'monday', 0);
-    if (this._viewWeekStart?.toISODate() !== weekStart.toISODate()) this._viewWeekStart = weekStart;
     const count = dayCountFor(this._config.hideWeekend ?? false);
     if (idx < count) await this._recenter(-1, strip, idx);
     else if (idx >= (WINDOW_WEEKS - 1) * count) await this._recenter(1, strip, idx);
@@ -375,15 +360,13 @@ export class CalendarWeekViewCard extends LitElement {
     }
   }
 
-  /** After the initial load (or a This-week reset), land the strip on today. */
+  /** After the initial load (or a Today reset), land the strip with today at the left edge. */
   protected updated(): void {
     if (!this._scrollToToday) return;
     const strip = this._strip();
     if (!strip || this._columns.length === 0) return;
     const idx = this._columns.findIndex((c) => c.isToday);
-    const visible = this._config.visibleDays ?? 3;
-    const target = autoScrollStartIndex(Math.max(idx, 0), this._columns.length, visible);
-    strip.scrollLeft = this._childLeft(strip, target);
+    strip.scrollLeft = this._childLeft(strip, Math.max(idx, 0));
     this._scrollToToday = false;
   }
 
@@ -452,20 +435,9 @@ export class CalendarWeekViewCard extends LitElement {
 
   private _renderNav() {
     if (this._config.showNavigation === false) return html``;
-    const thisWeek = computeWeekStart(this._now(), this._config.weekStartsOn ?? 'monday', 0);
-    const start = this._viewWeekStart ?? thisWeek;
-    const count = dayCountFor(this._config.hideWeekend ?? false);
-    const away = start.toISODate() !== thisWeek.toISODate();
     return html`
       <div class="nav">
-        <button class="rbtn" aria-label="Previous week" @click=${() => this._stepWeek(-1)}>
-          <ha-icon icon="mdi:chevron-left"></ha-icon>
-        </button>
-        <div class="range">${formatWeekLabel(start, count)}<small>${start.toFormat('yyyy')}</small></div>
-        <button class="rbtn" aria-label="Next week" @click=${() => this._stepWeek(1)}>
-          <ha-icon icon="mdi:chevron-right"></ha-icon>
-        </button>
-        ${away ? html`<button class="today-reset" @click=${() => this._goToday()}>This week</button>` : ''}
+        <button class="today-btn" @click=${() => this._goToday()}>${this._config.texts?.today ?? 'Today'}</button>
       </div>
     `;
   }
@@ -496,7 +468,7 @@ export class CalendarWeekViewCard extends LitElement {
       <div class=${classMap({ day: true, today: col.isToday, past: col.isPast })}>
         <div class="day-head">
           <div class="dstack">
-            <span class="dow">${col.date.toFormat('ccc')}</span>
+            <span class="dmeta">${this._fmt(col.date, this._config.dateFormat ?? 'yyyy · LLLL · cccc')}</span>
             <span class="dnum">${col.date.day}</span>
           </div>
         </div>
@@ -538,7 +510,7 @@ export class CalendarWeekViewCard extends LitElement {
     return html`
       <div class="ev" style="--c:${e.color}" @click=${() => this._openDetails(e)}>
         <span class="time">
-          ${e.start.toFormat(fmt)} – ${e.end.toFormat(fmt)}
+          ${this._fmt(e.start, fmt)} – ${this._fmt(e.end, fmt)}
           ${
             wx
               ? html`<span class="wx">
@@ -560,8 +532,8 @@ export class CalendarWeekViewCard extends LitElement {
   private _renderDetails() {
     const e = this._detailsEvent;
     if (!e) return html``;
-    const dateLine = e.start.toFormat('cccc d LLLL');
-    const timeLine = e.allDay ? 'All day' : `${e.start.toFormat('HH:mm')} – ${e.end.toFormat('HH:mm')}`;
+    const dateLine = this._fmt(e.start, 'cccc d LLLL');
+    const timeLine = e.allDay ? 'All day' : `${this._fmt(e.start, 'HH:mm')} – ${this._fmt(e.end, 'HH:mm')}`;
     const canDelete = this._canMutate(e, CalendarFeature.DELETE);
     const canEdit = this._canMutate(e, CalendarFeature.UPDATE);
     return html`
