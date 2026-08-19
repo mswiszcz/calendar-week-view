@@ -30,6 +30,8 @@ const GENERAL_SCHEMA = [
   { name: 'showLegend', selector: { boolean: {} } },
   { name: 'legendToggle', selector: { boolean: {} } },
   { name: 'showClock', selector: { boolean: {} } },
+  { name: 'clockFormat', selector: { text: {} } },
+  { name: 'headerDateFormat', selector: { text: {} } },
   { name: 'showNextEvent', selector: { boolean: {} } },
   { name: 'addEvents', selector: { boolean: {} } },
 ];
@@ -42,11 +44,13 @@ const AGENDA_SCHEMA = [
   },
 ];
 
-/** Day-header templates and toggles, shared by both views. */
+/** Day-header templates and toggles, shared by both views. Each on/off toggle
+    sits directly above the format it controls. */
 const HEADER_SCHEMA = [
+  { name: 'showHeaderSuptext', selector: { boolean: {} } },
   { name: 'headerSuptext', selector: { text: {} } },
-  { name: 'headerText', selector: { text: {} } },
   { name: 'showHeaderText', selector: { boolean: {} } },
+  { name: 'headerText', selector: { text: {} } },
 ];
 
 /** Fields that only affect calendar view. */
@@ -68,8 +72,6 @@ const ADVANCED_SCHEMA = [
     selector: { number: { min: 10, max: 3600, mode: 'box', unit_of_measurement: 's' } },
   },
   { name: 'timeFormat', selector: { text: {} } },
-  { name: 'clockFormat', selector: { text: {} } },
-  { name: 'headerDateFormat', selector: { text: {} } },
   { name: 'locale', selector: { text: {} } },
 ];
 
@@ -101,6 +103,7 @@ const LABELS: Record<string, string> = {
   timeFormat: 'Time format',
   headerSuptext: 'Header suptext',
   headerText: 'Header text',
+  showHeaderSuptext: 'Show header suptext',
   showHeaderText: 'Show header text',
   clockFormat: 'Clock format',
   headerDateFormat: 'Header date format',
@@ -121,7 +124,8 @@ const HELPERS: Record<string, string> = {
   headerSuptext:
     'Small line above the day number. Literal text plus {luxonToken} groups, e.g. Week {W} or {cccc}. Default {yyyy · LLLL · cccc} (agenda) / {ccc} (calendar).',
   headerText: 'The day number line. Literal text plus {luxonToken} groups, e.g. {d} or Day {d}. Default {d}.',
-  showHeaderText: 'Show the main day-header line (the header text above). The suptext line always shows.',
+  showHeaderSuptext: 'Show the suptext line (the header suptext below).',
+  showHeaderText: 'Show the main day-header line (the header text below).',
   clockFormat: 'Luxon tokens for the header clock; add ss (e.g. HH:mm:ss) to tick every second.',
   headerDateFormat: 'Luxon tokens for the date beside the clock, e.g. cccc, d LLLL.',
   locale: 'BCP-47 locale applied to formatted dates and times, e.g. en, de, fr.',
@@ -152,6 +156,7 @@ const DEFAULTS: Partial<CardConfig> = {
   addEvents: false,
   compact: false,
   combineSimilarEvents: false,
+  showHeaderSuptext: true,
   showHeaderText: true,
 };
 

@@ -935,13 +935,14 @@ export class CalendarWeekViewCard extends LitElement {
       ? html`<div class="allday">${col.allDayEvents.map((e) => this._renderPill(e))}</div>`
       : '';
     const head = this._dayHeader(col.date, calendar);
+    const showSup = this._config.showHeaderSuptext !== false;
     const showText = this._config.showHeaderText !== false;
     if (calendar) {
       return html`
         <div class=${classMap({ day: true, cal: true, today: col.isToday, past: col.isPast })}>
           <div class="cal-head">
             <div class="cal-dayhead">
-              <span class="cd-name">${head.sup}</span>
+              ${showSup ? html`<span class="cd-name">${head.sup}</span>` : ''}
               ${showText ? html`<span class="cd-num">${head.num}</span>` : ''}
             </div>
             ${allday}
@@ -954,7 +955,7 @@ export class CalendarWeekViewCard extends LitElement {
       <div class=${classMap({ day: true, today: col.isToday, past: col.isPast })}>
         <div class="day-head">
           <div class="dstack">
-            <span class="dmeta">${head.sup}</span>
+            ${showSup ? html`<span class="dmeta">${head.sup}</span>` : ''}
             ${showText ? html`<span class="dnum">${head.num}</span>` : ''}
           </div>
         </div>
