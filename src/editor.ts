@@ -339,17 +339,26 @@ export class CalendarWeekViewEditor extends LitElement {
               ></ha-switch>
             </ha-formfield>
           </div>
-          <div class="subhead">Day header</div>
-          <div class="hint">
-            Text above and on the day-number line, in both views. Literal text plus {luxonToken} groups.
-          </div>
-          ${this._form(data, HEADER_SCHEMA)}
-          <div class="subhead">Today</div>
-          <div class="hint">Turn today's accent background, border, and text on or off.</div>
-          ${this._form(data, TODAY_SCHEMA)}
-          <div class="subhead">Colors</div>
-          <div class="hint">Leave a color blank to follow the Home Assistant theme.</div>
-          ${COLOR_FIELDS.map((f) => this._renderColorRow(f.key, f.label))}
+          <ha-expansion-panel outlined .header=${'Day header'}>
+            <div class="section">
+              <div class="hint">
+                Text above and on the day-number line, in both views. Literal text plus {luxonToken} groups.
+              </div>
+              ${this._form(data, HEADER_SCHEMA)}
+            </div>
+          </ha-expansion-panel>
+          <ha-expansion-panel outlined .header=${'Today'}>
+            <div class="section">
+              <div class="hint">Turn today's accent background, border, and text on or off.</div>
+              ${this._form(data, TODAY_SCHEMA)}
+            </div>
+          </ha-expansion-panel>
+          <ha-expansion-panel outlined .header=${'Colors'}>
+            <div class="section">
+              <div class="hint">Leave a color blank to follow the Home Assistant theme.</div>
+              ${COLOR_FIELDS.map((f) => this._renderColorRow(f.key, f.label))}
+            </div>
+          </ha-expansion-panel>
         </div>
       </ha-expansion-panel>
 
