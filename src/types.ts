@@ -82,7 +82,9 @@ export interface CardConfig {
   /** Day-header templates: literal text plus `{luxonToken}` groups (e.g. `Day {d}`). */
   headerSuptext?: string;
   headerText?: string;
-  /** Show the day-header main line (`headerText`); the suptext line stays regardless. */
+  /** Show the day-header suptext line (`headerSuptext`). */
+  showHeaderSuptext?: boolean;
+  /** Show the day-header main line (`headerText`). */
   showHeaderText?: boolean;
   showClock?: boolean;
   showNextEvent?: boolean;
