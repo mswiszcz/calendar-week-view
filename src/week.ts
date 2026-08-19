@@ -102,6 +102,57 @@ export function normalizeEvent(
   };
 }
 
+function byStart(a: WeekEvent, b: WeekEvent): number {
+  return a.originalStart.toMillis() - b.originalStart.toMillis();
+}
+
+/**
+ * The next event to surface in the header, with the time until it starts.
+ *
+ * Prefers the nearest future timed event. All-day events are skipped, except a
+ * single all-day event starting tomorrow is surfaced when no timed event remains
+ * today — the "what's next" once the day is done.
+ */
+export function pickUpcoming(now: DateTime, events: WeekEvent[]): WeekEvent | null {
+  const timedFuture = events.filter((e) => !e.allDay && !e.multiDay && e.originalStart > now);
+  timedFuture.sort(byStart);
+  const noMoreToday = !timedFuture.some((e) => e.originalStart.hasSame(now, 'day'));
+  if (noMoreToday) {
+    const tomorrow = now.plus({ days: 1 }).startOf('day');
+    const tomorrowAllDay = events.filter((e) => (e.allDay || e.multiDay) && e.originalStart.hasSame(tomorrow, 'day'));
+    tomorrowAllDay.sort(byStart);
+    if (tomorrowAllDay[0]) return tomorrowAllDay[0];
+  }
+  return timedFuture[0] ?? null;
+}
+
+/** Compact "time until start" label, e.g. `in 30m`, `in 2h 15m`, `in 3d`, or `Tomorrow`. */
+export function formatCountdown(now: DateTime, ev: WeekEvent): string {
+  if (ev.allDay || ev.multiDay) {
+    const days = Math.round(ev.originalStart.startOf('day').diff(now.startOf('day'), 'days').days);
+    if (days <= 0) return 'Today';
+    if (days === 1) return 'Tomorrow';
+    return `in ${days}d`;
+  }
+  const totalMin = Math.round(ev.originalStart.diff(now).as('minutes'));
+  if (totalMin < 1) return 'now';
+  if (totalMin < 60) return `in ${totalMin}m`;
+  if (totalMin < 1440) {
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return m ? `in ${h}h ${m}m` : `in ${h}h`;
+  }
+  return `in ${Math.floor(totalMin / 1440)}d`;
+}
+
+/** Where today sits relative to the visible day range: -1 before, 0 within, 1 after. */
+export function todayRelation(today: DateTime, left: DateTime, right: DateTime): -1 | 0 | 1 {
+  const t = today.startOf('day');
+  if (t < left.startOf('day')) return -1;
+  if (t > right.startOf('day')) return 1;
+  return 0;
+}
+
 /** Distribute events across the given days, computing continuation flags. */
 export function buildDayColumns(args: { days: DateTime[]; now: DateTime; events: WeekEvent[] }): DayColumn[] {
   const today = args.now.startOf('day');

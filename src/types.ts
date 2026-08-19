@@ -51,6 +51,9 @@ export interface CardConfig {
   locale?: string;
   timeFormat?: string;
   dateFormat?: string;
+  showClock?: boolean;
+  clockFormat?: string;
+  headerDateFormat?: string;
   texts?: Record<string, string>;
 }
 

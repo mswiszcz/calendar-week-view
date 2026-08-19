@@ -99,26 +99,121 @@ export const styles = css`
     flex-wrap: wrap;
     margin-bottom: 14px;
   }
-  .nav {
+  /* status cluster — the live clock anchors the header; date and next event trail it */
+  .status {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 14px;
+    min-width: 0;
   }
-  .today-btn {
-    font: inherit;
+  .clock {
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--primary-text-color);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+  ha-card.compact .clock {
+    font-size: 32px;
+  }
+  .statusmeta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+  .sdate {
     font-size: 13px;
     font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1.1;
+    color: var(--secondary-text-color);
+  }
+  .upnext {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    max-width: 100%;
+    font: inherit;
+    cursor: pointer;
+    appearance: none;
+    background: var(--neutral-tile);
+    border: 1px solid var(--divider-color);
+    border-radius: 999px;
+    padding: 5px 12px 5px 10px;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease;
+  }
+  .upnext:hover {
+    background: var(--hover-tint);
+    border-color: color-mix(in srgb, var(--c) 40%, var(--divider-color));
+  }
+  .up-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--c);
+    flex: none;
+  }
+  .up-name {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--primary-text-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .up-when {
+    font-size: 12.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: color-mix(in srgb, var(--primary-color) 78%, var(--primary-text-color));
+    flex: none;
+  }
+  /* return-to-today — filled accent, shown only when today has scrolled off-screen */
+  .return-btn {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    appearance: none;
+    display: grid;
+    place-items: center;
     color: var(--on-primary);
     background: var(--primary-color);
-    cursor: pointer;
-    border: none;
-    padding: 9px 18px;
-    border-radius: 999px;
-    box-shadow: 0 1px 2px color-mix(in srgb, var(--primary-color) 30%, transparent);
-    transition: filter 0.15s ease;
+    box-shadow: 0 2px 6px color-mix(in srgb, var(--primary-color) 34%, transparent);
+    transition:
+      transform 0.15s cubic-bezier(0.2, 0.7, 0.3, 1),
+      filter 0.15s ease;
+    animation: return-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
-  .today-btn:hover {
-    filter: brightness(1.06);
+  .return-btn:hover {
+    transform: translateY(-2px) scale(1.05);
+    filter: brightness(1.05);
+  }
+  .return-btn:active {
+    transform: translateY(0) scale(0.97);
+  }
+  .return-btn ha-icon {
+    --mdc-icon-size: 22px;
+  }
+  @keyframes return-in {
+    from {
+      opacity: 0;
+      transform: scale(0.8);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .return-btn {
+      animation: none;
+    }
   }
   .legend {
     display: flex;
