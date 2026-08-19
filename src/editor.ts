@@ -24,10 +24,6 @@ const GENERAL_SCHEMA = [
   { name: 'showNavigation', selector: { boolean: {} } },
   { name: 'showLegend', selector: { boolean: {} } },
   { name: 'legendToggle', selector: { boolean: {} } },
-  { name: 'showClock', selector: { boolean: {} } },
-  { name: 'clockFormat', selector: { text: {} } },
-  { name: 'headerDateFormat', selector: { text: {} } },
-  { name: 'showNextEvent', selector: { boolean: {} } },
   { name: 'addEvents', selector: { boolean: {} } },
 ];
 
@@ -39,9 +35,13 @@ const AGENDA_SCHEMA = [
   },
 ];
 
-/** Day-header templates and toggles, shared by both views. Each on/off toggle
-    sits directly above the format it controls. */
+/** The whole header: the card's clock/next-event line plus the per-day column
+    headers. Each on/off toggle sits directly above the format it controls. */
 const HEADER_SCHEMA = [
+  { name: 'showClock', selector: { boolean: {} } },
+  { name: 'clockFormat', selector: { text: {} } },
+  { name: 'headerDateFormat', selector: { text: {} } },
+  { name: 'showNextEvent', selector: { boolean: {} } },
   { name: 'showHeaderSuptext', selector: { boolean: {} } },
   { name: 'headerSuptext', selector: { text: {} } },
   { name: 'showHeaderText', selector: { boolean: {} } },
@@ -248,9 +248,20 @@ export class CalendarWeekViewEditor extends LitElement {
 
   @property({ attribute: false }) hass!: HomeAssistant;
   @state() private _config!: CardConfig;
+  /** Which calendar / button item panels are expanded, keyed `kind:index`. A
+      freshly added item is opened so its fields (e.g. the entity picker) show. */
+  @state() private _openItems = new Set<string>();
 
   setConfig(config: CardConfig): void {
     this._config = config;
+  }
+
+  private _setItemOpen(key: string, open: boolean): void {
+    if (open === this._openItems.has(key)) return;
+    const next = new Set(this._openItems);
+    if (open) next.add(key);
+    else next.delete(key);
+    this._openItems = next;
   }
 
   render() {
@@ -320,10 +331,11 @@ export class CalendarWeekViewEditor extends LitElement {
               ></ha-switch>
             </ha-formfield>
           </div>
-          <ha-expansion-panel outlined .header=${'Day header'}>
+          <ha-expansion-panel outlined .header=${'Header'}>
             <div class="section">
               <div class="hint">
-                Text above and on the day-number line, in both views. Literal text plus {luxonToken} groups.
+                The card header (clock, next event) and the per-day column headers. Format fields take literal text plus
+                {luxonToken} groups.
               </div>
               ${this._form(data, HEADER_SCHEMA)}
             </div>
@@ -363,8 +375,14 @@ export class CalendarWeekViewEditor extends LitElement {
   }
 
   private _renderCalendar(cal: CalendarConfig, i: number) {
+    const key = `cal:${i}`;
     return html`
-      <ha-expansion-panel outlined .header=${cal.name || cal.entity || 'New calendar'}>
+      <ha-expansion-panel
+        outlined
+        .header=${cal.name || cal.entity || 'New calendar'}
+        .expanded=${this._openItems.has(key)}
+        @expanded-changed=${(e: CustomEvent) => this._setItemOpen(key, e.detail.expanded)}
+      >
         <div class="section">
           <div class="grp-actions">
             <button class="icon-btn" title="Remove calendar" @click=${() => this._removeCalendar(i)}>
@@ -419,8 +437,14 @@ export class CalendarWeekViewEditor extends LitElement {
   }
 
   private _renderButton(kind: ButtonKind, btn: ButtonConfig, i: number) {
+    const key = `${kind}:${i}`;
     return html`
-      <ha-expansion-panel outlined .header=${btn.name || btn.icon || 'New button'}>
+      <ha-expansion-panel
+        outlined
+        .header=${btn.name || btn.icon || 'New button'}
+        .expanded=${this._openItems.has(key)}
+        @expanded-changed=${(e: CustomEvent) => this._setItemOpen(key, e.detail.expanded)}
+      >
         <div class="section">
           <div class="grp-actions">
             <button class="icon-btn" title="Remove button" @click=${() => this._removeButton(kind, i)}>
@@ -545,6 +569,7 @@ export class CalendarWeekViewEditor extends LitElement {
   }
 
   private _addCalendar(): void {
+    this._setItemOpen(`cal:${(this._config.calendars ?? []).length}`, true);
     this._emit({ ...this._config, calendars: [...(this._config.calendars ?? []), { entity: '' }] });
   }
 
@@ -559,6 +584,7 @@ export class CalendarWeekViewEditor extends LitElement {
   }
 
   private _addButton(kind: ButtonKind): void {
+    this._setItemOpen(`${kind}:${(this._config[kind] ?? []).length}`, true);
     this._emit({ ...this._config, [kind]: [...(this._config[kind] ?? []), { icon: '' }] });
   }
 
