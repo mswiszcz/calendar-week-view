@@ -40,7 +40,12 @@ const AGENDA_SCHEMA = [
     name: 'orientation',
     selector: { select: { options: ['horizontal', 'vertical'], mode: 'dropdown' } },
   },
-  { name: 'dateFormat', selector: { text: {} } },
+];
+
+/** Day-header templates, shared by both views. */
+const HEADER_SCHEMA = [
+  { name: 'headerSuptext', selector: { text: {} } },
+  { name: 'headerText', selector: { text: {} } },
 ];
 
 /** Fields that only affect calendar view. */
@@ -93,7 +98,8 @@ const LABELS: Record<string, string> = {
   combineSimilarEvents: 'Combine duplicate events',
   updateInterval: 'Update interval',
   timeFormat: 'Time format',
-  dateFormat: 'Date format',
+  headerSuptext: 'Header suptext',
+  headerText: 'Header text',
   clockFormat: 'Clock format',
   headerDateFormat: 'Header date format',
   locale: 'Locale',
@@ -105,11 +111,14 @@ const HELPERS: Record<string, string> = {
     'Vertical stacks the days full-height and grows the card to fit them — the dashboard scrolls, nothing inside the card does. Horizontal is a scrollable day strip.',
   visibleDays:
     'Days shown at once: strip columns when horizontal, and the number of days listed from today when vertical.',
-  compact: 'Tighter padding and shorter rows to fit more in less vertical space.',
+  compact:
+    'Tighter layout: shorter clock and min-height; in the vertical agenda, a halved header gap and an edge-to-edge day list.',
   height:
     'The card never shrinks below this but still grows to fill its container, e.g. 520px. Ignored in vertical agenda, which sizes to its content.',
   timeFormat: 'Luxon tokens for event start/end times, e.g. HH:mm or h:mm a.',
-  dateFormat: 'Luxon tokens for the meta line above each day number, e.g. yyyy · LLLL · cccc.',
+  headerSuptext:
+    'Small line above the day number. Literal text plus {luxonToken} groups, e.g. Week {W} or {cccc}. Default {yyyy · LLLL · cccc} (agenda) / {ccc} (calendar).',
+  headerText: 'The day number line. Literal text plus {luxonToken} groups, e.g. {d} or Day {d}. Default {d}.',
   clockFormat: 'Luxon tokens for the header clock; add ss (e.g. HH:mm:ss) to tick every second.',
   headerDateFormat: 'Luxon tokens for the date beside the clock, e.g. cccc, d LLLL.',
   locale: 'BCP-47 locale applied to formatted dates and times, e.g. en, de, fr.',
@@ -312,6 +321,11 @@ export class CalendarWeekViewEditor extends LitElement {
 
       <ha-expansion-panel outlined .header=${'Styling'}>
         <div class="section">
+          <div class="subhead">Day header</div>
+          <div class="hint">
+            Text above and on the day-number line, in both views. Literal text plus {luxonToken} groups.
+          </div>
+          ${this._form(data, HEADER_SCHEMA)}
           <ha-formfield label="Card background">
             <ha-switch
               .checked=${this._config.noCardBackground !== true}
@@ -420,6 +434,14 @@ export class CalendarWeekViewEditor extends LitElement {
         <div class="color-row">
           <label>Color</label>
           ${this._colorInputs(btn.color ?? '', (v) => this._buttonChanged(kind, i, { color: v || undefined }))}
+        </div>
+        <div class="color-row">
+          <label>Background</label>
+          ${this._colorInputs(
+            btn.background ?? '',
+            (v) => this._buttonChanged(kind, i, { background: v || undefined }),
+            'Background',
+          )}
         </div>
       </div>
     `;
@@ -547,6 +569,7 @@ export class CalendarWeekViewEditor extends LitElement {
     const next = { ...btn };
     if (!next.name) delete next.name;
     if (!next.color) delete next.color;
+    if (!next.background) delete next.background;
     if (!next.tap_action) delete next.tap_action;
     return next;
   }

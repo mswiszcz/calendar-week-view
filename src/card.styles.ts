@@ -52,15 +52,13 @@ export const styles = css`
     height: auto;
     min-height: 0;
   }
+  /* The card's outer inset lives on .topbar and .carousel (not .cwv), so compact
+     and the vertical agenda can strip it per edge. */
   .cwv {
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    padding: 16px 16px 12px;
-  }
-  ha-card.compact .cwv {
-    padding: 10px 10px 8px;
   }
 
   ha-alert {
@@ -68,11 +66,15 @@ export const styles = css`
     margin-bottom: 10px;
     white-space: pre-line;
   }
+  /* top-level alerts sit above the topbar, so they carry the outer inset themselves */
+  .cwv > ha-alert {
+    margin: 12px 16px 0;
+  }
   .card-title {
     font-size: 20px;
     font-weight: 700;
     letter-spacing: -0.02em;
-    margin: 2px 2px 12px;
+    margin: 16px 16px 12px;
     color: var(--primary-text-color);
   }
 
@@ -108,16 +110,18 @@ export const styles = css`
   .fbtn {
     width: 48px;
     height: 48px;
+    padding: 3px;
     border-radius: 50%;
     border: 1px solid var(--divider-color);
     cursor: pointer;
     display: grid;
     place-items: center;
-    background: var(--card-background-color);
+    background: var(--btn-bg, var(--card-background-color));
     color: var(--c, var(--primary-text-color));
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.18);
     transition:
       transform 0.14s cubic-bezier(0.2, 0.7, 0.3, 1),
+      background 0.14s ease,
       filter 0.14s ease;
   }
   .fbtn ha-icon {
@@ -127,6 +131,11 @@ export const styles = css`
   .fbtn:hover {
     transform: translateY(-3px) scale(1.05);
     filter: brightness(1.05);
+  }
+  /* hover shade derives from the button's fill: +10% text mix darkens on a light
+     theme, lightens on a dark theme, tracking the active HA theme. */
+  .fbtn:hover {
+    background: color-mix(in srgb, var(--primary-text-color) 10%, var(--btn-bg, var(--card-background-color)));
   }
   .fab:active,
   .fbtn:active {
@@ -139,6 +148,7 @@ export const styles = css`
     align-items: center;
     gap: 16px;
     flex-wrap: wrap;
+    padding: 16px 16px 0;
     margin-bottom: 14px;
   }
   /* right side of the header — legend, calendar-view control, and custom buttons,
@@ -350,7 +360,7 @@ export const styles = css`
     padding: 0 10px;
     border-radius: 999px;
     border: 1px solid var(--divider-color);
-    background: var(--neutral-tile);
+    background: var(--btn-bg, var(--neutral-tile));
     color: var(--c, var(--secondary-text-color));
     cursor: pointer;
     font: inherit;
@@ -359,11 +369,18 @@ export const styles = css`
       color 0.15s ease,
       border-color 0.15s ease;
   }
+  /* glyph-only header buttons are round, sized to the icon with a 3px inset */
+  .hbtn:not(.labeled) {
+    width: 34px;
+    padding: 3px;
+    justify-content: center;
+    border-radius: 50%;
+  }
   .hbtn.labeled {
     padding: 0 14px 0 12px;
   }
   .hbtn:hover {
-    background: var(--hover-tint);
+    background: color-mix(in srgb, var(--primary-text-color) 10%, var(--btn-bg, var(--neutral-tile)));
     color: var(--c, var(--primary-text-color));
     border-color: color-mix(in srgb, var(--c, var(--primary-color)) 40%, var(--divider-color));
   }
@@ -380,20 +397,27 @@ export const styles = css`
 
   /* carousel — a side gutter holds the arrows inside the card, each half over
      the edge day column and half over the gutter (never past the card edge). */
+  /* the side padding is the arrow gutter (arrows sit half over it); the bottom is
+     the card's outer inset, moved here off .cwv */
   .carousel {
     position: relative;
     flex: 1;
     min-height: 0;
     display: flex;
     align-items: stretch;
-    padding: 0 22px;
+    padding: 0 22px 12px;
   }
-  /* vertical layout pages up/down, so the arrow gutter moves to top/bottom */
-  .carousel.vert {
-    padding: 22px 0;
-  }
-  /* no navigation shown — reclaim the arrow gutter for the strip */
+  /* no navigation shown (incl. the vertical agenda) — no arrow gutter, so the
+     side padding is just the outer inset */
   .carousel.nonav {
+    padding: 0 16px 12px;
+  }
+  /* compact vertical agenda — halve the header gap and drop the carousel inset so
+     the day list runs edge to edge */
+  ha-card.compact.vagenda .topbar {
+    margin-bottom: 7px;
+  }
+  ha-card.compact.vagenda .carousel {
     padding: 0;
   }
   .car-arrow {

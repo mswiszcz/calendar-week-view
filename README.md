@@ -97,14 +97,17 @@ calendars:
 | `colors` | object | — | Override UI colors. See [Color options](#color-options). |
 | `combineSimilarEvents` | boolean | `false` | Merge identical events that appear in more than one calendar. |
 | `updateInterval` | number | `60` | Seconds between background re-fetches. |
-| `compact` | boolean | `false` | Tighter padding and shorter columns. |
+| `compact` | boolean | `false` | Tighter layout: a shorter clock and lower min-height, plus (in the vertical agenda) a halved header gap and an edge-to-edge day list. |
 | `noCardBackground` | boolean | `false` | Render without the card background and shadow. |
 | `timeFormat` | string | `HH:mm` | [Luxon](https://moment.github.io/luxon/#/formatting) token for event times. |
-| `dateFormat` | string | `yyyy · LLLL · cccc` | [Luxon](https://moment.github.io/luxon/#/formatting) token for the meta line above each day number (e.g. `2026 · August · Saturday`). |
+| `headerSuptext` | string | `{yyyy · LLLL · cccc}` agenda / `{ccc}` calendar | Small line above the day number, in both views. Literal text plus `{`[Luxon](https://moment.github.io/luxon/#/formatting)` token}` groups (e.g. `Week {W}` → `Week 34`). |
+| `headerText` | string | `{d}` | The day-number line, in both views. Same `{token}` templating (e.g. `Day {d}` → `Day 19`). |
 | `clockFormat` | string | `HH:mm` | [Luxon](https://moment.github.io/luxon/#/formatting) token for the header clock. Include seconds (e.g. `HH:mm:ss`) to make it tick every second. |
 | `headerDateFormat` | string | `cccc, d LLLL` | [Luxon](https://moment.github.io/luxon/#/formatting) token for the date beside the clock (e.g. `Wednesday, 19 August`). |
 | `locale` | string | browser | BCP-47 locale (e.g. `en`, `de`, `fr`) applied to formatted dates and times. |
 | `texts` | object | — | String overrides. Currently: `noEvents` (empty-day text), `today` (return-to-today button label). |
+
+> **Changed in 1.7:** `dateFormat` is replaced by `headerSuptext` + `headerText`, which wrap tokens in `{}` and add literal text. Move a `dateFormat: cccc` to `headerSuptext: "{cccc}"`.
 
 ### Calendar options
 
@@ -194,7 +197,8 @@ Two optional lists add your own buttons, each firing a standard Home Assistant
 action (`navigate`, `url`, `call-service`, `more-info`, `toggle`):
 
 - **`headerButtons`** render at the **top-right** of the header, vertically
-  centered, as pill chips (icon plus optional label).
+  centered. With a `name` they are pill chips (icon plus label); icon-only ones
+  are round.
 - **`floatingButtons`** render as round icon buttons **to the left of the
   floating +** at the bottom-right. They work with or without `addEvents`.
 
@@ -225,6 +229,7 @@ floatingButtons:
 | `icon` | string | MDI icon (e.g. `mdi:cog`). Required. |
 | `name` | string | Header: shown as the button label. Floating: used as the tooltip. |
 | `color` | CSS color | Optional accent for the button's icon (and header chip). |
+| `background` | CSS color | Optional button fill. Its hover shade is derived automatically (10% darker on a light theme, lighter on a dark one). |
 | `tap_action` | object | A Home Assistant [action](https://www.home-assistant.io/dashboards/actions/). A button without one renders but does nothing. |
 
 ## Managing events
