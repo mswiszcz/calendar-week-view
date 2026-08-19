@@ -11,4 +11,4 @@ customElements.define('calendar-week-view-editor', CalendarWeekViewEditor);
   name: 'Calendar Week View',
   description: 'Current-week calendar with quick add and hourly weather.',
 });
-console.info('%c CALENDAR-WEEK-VIEW %c v1.3.0 ', 'color:white;background:#0aa2e6', 'color:#0aa2e6;background:white');
+console.info('%c CALENDAR-WEEK-VIEW %c v1.4.2 ', 'color:white;background:#0aa2e6', 'color:#0aa2e6;background:white');

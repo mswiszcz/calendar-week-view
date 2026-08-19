@@ -18,6 +18,7 @@ export const styles = css`
     --cwv-header-h: 44px;
     --cwv-allday-h: 0px;
     --cwv-gutter-w: 52px;
+    --cwv-grid-h: calc(24 * var(--cwv-hour-h));
     --cwv-line: color-mix(in srgb, var(--primary-text-color, #1a1c1e) 9%, transparent);
     --cwv-now: var(--error-color, #ea4335);
     --on-primary: var(--text-primary-color, #ffffff);
@@ -259,6 +260,37 @@ export const styles = css`
     opacity: 0.45;
   }
 
+  /* calendar-view expand toggle — sits at the far right of the top bar */
+  .expand-btn {
+    flex: none;
+    margin-left: auto;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid var(--divider-color);
+    background: var(--neutral-tile);
+    color: var(--secondary-text-color);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease,
+      border-color 0.15s ease;
+  }
+  .expand-btn:hover {
+    background: var(--hover-tint);
+    color: var(--primary-text-color);
+  }
+  .expand-btn.on {
+    background: color-mix(in srgb, var(--primary-color) 16%, var(--card-background-color));
+    border-color: color-mix(in srgb, var(--primary-color) 40%, var(--divider-color));
+    color: var(--primary-color);
+  }
+  .expand-btn ha-icon {
+    --mdc-icon-size: 20px;
+  }
+
   /* carousel — a side gutter holds the arrows inside the card, each half over
      the edge day column and half over the gutter (never past the card edge). */
   .carousel {
@@ -280,7 +312,8 @@ export const styles = css`
   .car-arrow {
     position: absolute;
     top: 50%;
-    z-index: 4;
+    /* above the calendar-view hour gutter (z-index 5), so paging stays clickable */
+    z-index: 6;
     width: 36px;
     height: 36px;
     border-radius: 50%;
@@ -603,7 +636,7 @@ export const styles = css`
   }
   .gutter-hours {
     position: relative;
-    height: calc(24 * var(--cwv-hour-h));
+    height: var(--cwv-grid-h);
   }
   .gutter .hour {
     position: absolute;
@@ -674,7 +707,7 @@ export const styles = css`
 
   .grid {
     position: relative;
-    height: calc(24 * var(--cwv-hour-h));
+    height: var(--cwv-grid-h);
     background-image: repeating-linear-gradient(
       to bottom,
       var(--cwv-line) 0,
@@ -709,9 +742,33 @@ export const styles = css`
     appearance: none;
     transition: filter 0.12s ease;
   }
+  /* Short events (≤30 min) read on a single line: time then title inline. */
+  .tev.short {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .tev.short .tev-time {
+    flex: none;
+  }
+  .tev.short .tev-title {
+    min-width: 0;
+  }
+  /* Hover reveals a clipped block: it fills the column, grows to fit its text,
+     and lifts above neighbours. min-height keeps a tall block from shrinking. */
   .tev:hover {
-    filter: brightness(1.06);
-    z-index: 2;
+    z-index: 6;
+    filter: brightness(1.03);
+    left: 2px !important;
+    right: 2px !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: var(--tev-min-h, auto);
+    box-shadow: 0 3px 10px color-mix(in srgb, var(--primary-text-color) 24%, transparent);
+  }
+  .tev:hover .tev-title {
+    white-space: normal;
+    overflow: visible;
   }
   .tev-time {
     display: flex;

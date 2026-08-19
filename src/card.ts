@@ -10,8 +10,8 @@ import type {
   CardConfig,
   DayColumn,
   HourlyForecast,
-  PositionedEvent,
   RecurrenceScope,
+  StackedEvent,
   WeekEvent,
 } from '@/types';
 import {
@@ -27,6 +27,7 @@ import {
   lockedDays,
   normalizeEvent,
   pickUpcoming,
+  stackDayEvents,
   supportsFeature,
   todayRelation,
   windowDays,
@@ -75,8 +76,10 @@ export class CalendarWeekViewCard extends LitElement {
   @state() private _upcoming: WeekEvent | null = null;
   @state() private _todayVisible = true;
   @state() private _todayDir: -1 | 0 | 1 = 0;
+  @state() private _expanded = false;
 
   private _hass?: HomeAssistant;
+  private _resizeObs?: ResizeObserver;
   private _loading = false;
   private _refetchQueued = false;
   private _scrollToToday = true;
@@ -140,6 +143,8 @@ export class CalendarWeekViewCard extends LitElement {
     if (this._timer) window.clearTimeout(this._timer);
     if (this._scrollTimer) window.clearTimeout(this._scrollTimer);
     if (this._clockTimer) window.clearTimeout(this._clockTimer);
+    this._resizeObs?.disconnect();
+    this._resizeObs = undefined;
     this._weatherUnsub?.();
     this._weatherUnsub = undefined;
   }
@@ -574,17 +579,38 @@ export class CalendarWeekViewCard extends LitElement {
     }
   }
 
+  protected updated(): void {
+    this._ensureResizeObserver();
+    if (this._scrollToToday) this._landToday();
+  }
+
+  /**
+   * Watch the strip so a deferred "land on today" fires once the card actually
+   * has a size. HA can render a card while its container is hidden or zero-width
+   * (lazy layout), where measuring would land the strip at 0 (far edge); the
+   * observer retries the land when the real size arrives.
+   */
+  private _ensureResizeObserver(): void {
+    if (this._resizeObs || typeof ResizeObserver === 'undefined') return;
+    const strip = this._strip();
+    if (!strip) return;
+    this._resizeObs = new ResizeObserver(() => {
+      this._updateTodayVisibility();
+      if (this._scrollToToday) this._landToday();
+    });
+    this._resizeObs.observe(strip);
+  }
+
   /**
    * Land the strip with today at the leading edge (left horizontally, top
-   * vertically) on the first render that contains it — the initial load
-   * (instant) or a Today reset (smooth, which also retargets any page scroll
-   * still animating). Waits out the today-less render that a `_windowOffset`
-   * change produces before its refetch resolves.
+   * vertically), plus the start hour in calendar view, on the first render that
+   * contains it — the initial load (instant) or a Today reset (smooth, which also
+   * retargets any page scroll still animating). No-op until the strip is laid
+   * out, so the flag is consumed only after a correct, measurable landing.
    */
-  protected updated(): void {
-    if (!this._scrollToToday) return;
+  private _landToday(): void {
     const strip = this._strip();
-    if (!strip || this._columns.length === 0) return;
+    if (!strip || this._columns.length === 0 || this._axis().client(strip) === 0) return;
     // Locked: the span starts at today, so there is no window landing to wait for —
     // only the calendar grid needs its start-hour scroll.
     if (this._isLocked()) {
@@ -607,11 +633,15 @@ export class CalendarWeekViewCard extends LitElement {
     if (!this._config) return html``;
     const cfg = this._config;
     const calendar = this._isCalendar();
+    const expanded = calendar && this._expanded;
     const hasAllDay = calendar && this._columns.some((c) => c.allDayEvents.length > 0);
+    const stacks = expanded ? this._columns.map((c) => stackDayEvents(c.timedEvents, (MIN_EVENT_H / HOUR_H) * 60)) : null;
+    const gridMin = stacks ? Math.max(1440, ...stacks.flatMap((s) => s.map((x) => x.topMin + x.heightMin))) : 1440;
     const styleParts = [
       `--cwv-visible:${cfg.visibleDays ?? 3}`,
       `--cwv-hour-h:${HOUR_H}px`,
       `--cwv-allday-h:${hasAllDay ? ALLDAY_H : 0}px`,
+      `--cwv-grid-h:${(gridMin / 60) * HOUR_H}px`,
     ];
     if (cfg.height) styleParts.push(`--cwv-min-h:${cfg.height}`);
     for (const [key, token] of Object.entries(COLOR_TOKENS)) {
@@ -631,7 +661,9 @@ export class CalendarWeekViewCard extends LitElement {
           ${this._error ? html`<ha-alert alert-type="error">${this._error}</ha-alert>` : ''}
           ${this._weatherError ? html`<ha-alert alert-type="warning">${this._weatherError}</ha-alert>` : ''}
           ${cfg.title ? html`<div class="card-title">${cfg.title}</div>` : ''}
-          <div class="topbar">${this._renderStatus()} ${this._renderLegend()}</div>
+          <div class="topbar">
+            ${this._renderStatus()} ${this._renderLegend()} ${calendar ? this._renderExpandToggle() : ''}
+          </div>
           <div class=${classMap({ carousel: true, nonav: !this._navEnabled(), vert: this._isVertical() })}>
             ${this._renderArrow(-1)}
             <div class=${classMap({ week: true, cal: calendar, vert: this._isVertical() })} @scroll=${this._onScroll}>
@@ -639,7 +671,7 @@ export class CalendarWeekViewCard extends LitElement {
               ${repeat(
                 this._columns,
                 (col) => col.date.toISODate() ?? '',
-                (col) => this._renderDay(col, calendar),
+                (col, i) => this._renderDay(col, calendar, stacks ? stacks[i] : undefined),
               )}
             </div>
             ${this._renderArrow(1)}
@@ -770,7 +802,23 @@ export class CalendarWeekViewCard extends LitElement {
     `;
   }
 
-  private _renderDay(col: DayColumn, calendar = false) {
+  /** Calendar-view control: expand overlapping events into a full-width stacked layout. */
+  private _renderExpandToggle() {
+    const label = this._expanded ? 'Collapse overlapping events' : 'Expand overlapping events';
+    return html`
+      <button
+        class=${classMap({ 'expand-btn': true, on: this._expanded })}
+        aria-label=${label}
+        title=${label}
+        aria-pressed=${this._expanded ? 'true' : 'false'}
+        @click=${() => (this._expanded = !this._expanded)}
+      >
+        <ha-icon icon=${this._expanded ? 'mdi:arrow-collapse-vertical' : 'mdi:arrow-expand-vertical'}></ha-icon>
+      </button>
+    `;
+  }
+
+  private _renderDay(col: DayColumn, calendar = false, stack?: StackedEvent[]) {
     const allday = col.allDayEvents.length
       ? html`<div class="allday">${col.allDayEvents.map((e) => this._renderPill(e))}</div>`
       : '';
@@ -784,7 +832,7 @@ export class CalendarWeekViewCard extends LitElement {
             </div>
             ${allday}
           </div>
-          ${this._renderGrid(col)}
+          ${this._renderGrid(col, stack)}
         </div>
       `;
     }
@@ -827,28 +875,48 @@ export class CalendarWeekViewCard extends LitElement {
     `;
   }
 
-  private _renderGrid(col: DayColumn) {
-    const placed = layoutDayEvents(col.timedEvents);
-    return html`
-      <div class="grid">${placed.map((p) => this._renderTimed(p))} ${col.isToday ? this._renderNow() : ''}</div>
-    `;
+  /**
+   * Render a day's timed events. Normally overlaps split into side-by-side lanes;
+   * when expanded (`stack` given) each event is full width and stacked so nothing
+   * is clipped. A 1px inset on every block keeps consecutive events from merging.
+   */
+  private _renderGrid(col: DayColumn, stack?: StackedEvent[]) {
+    const blocks = stack
+      ? stack.map((s) => {
+          const top = (s.topMin / 60) * HOUR_H + 1;
+          const height = (s.heightMin / 60) * HOUR_H - 2;
+          const style = `top:${top}px;height:${height}px;left:2px;right:2px;--tev-min-h:${height}px;--c:${s.event.color}`;
+          return this._tevBlock(s.event, style, s.durationMin);
+        })
+      : layoutDayEvents(col.timedEvents).map((p) => {
+          const top = (p.startMin / 60) * HOUR_H + 1;
+          const height = Math.max(MIN_EVENT_H, ((p.endMin - p.startMin) / 60) * HOUR_H) - 2;
+          const width = 100 / p.cols;
+          const left = p.col * width;
+          const style =
+            `top:${top}px;height:${height}px;left:calc(${left}% + 2px);` +
+            `width:calc(${width}% - 4px);--tev-min-h:${height}px;--c:${p.event.color}`;
+          return this._tevBlock(p.event, style, p.endMin - p.startMin);
+        });
+    return html` <div class="grid">${blocks} ${col.isToday ? this._renderNow() : ''}</div> `;
   }
 
-  private _renderTimed(p: PositionedEvent) {
-    const e = p.event;
+  /** One timed-event block: start–end time, title, optional weather; single-line when short. */
+  private _tevBlock(e: WeekEvent, style: string, durationMin: number) {
     const cfg = this._config;
     const fmt = cfg.timeFormat ?? 'HH:mm';
-    const top = (p.startMin / 60) * HOUR_H;
-    const height = Math.max(MIN_EVENT_H, ((p.endMin - p.startMin) / 60) * HOUR_H);
-    const width = 100 / p.cols;
-    const left = p.col * width;
     const wx = cfg.weather ? forecastForEvent(e, this._now(), this._forecast) : null;
     const round = cfg.weather?.roundTemperature ?? true;
-    const style = `top:${top}px;height:${height}px;left:calc(${left}% + 2px);width:calc(${width}% - 4px);--c:${e.color}`;
+    const short = durationMin <= 30;
     return html`
-      <button class="tev" style=${style} title=${e.summary} @click=${() => this._openDetails(e)}>
+      <button
+        class=${classMap({ tev: true, short })}
+        style=${style}
+        title=${e.summary}
+        @click=${() => this._openDetails(e)}
+      >
         <span class="tev-time">
-          ${this._fmt(e.start, fmt)}
+          ${this._fmt(e.start, fmt)} – ${this._fmt(e.end, fmt)}
           ${
             wx
               ? html`<span class="tev-wx">

@@ -1,5 +1,13 @@
 import { DateTime } from 'luxon';
-import type { CalendarConfig, CalendarEventInput, DayColumn, PositionedEvent, WeekEvent, WeekStart } from '@/types';
+import type {
+  CalendarConfig,
+  CalendarEventInput,
+  DayColumn,
+  PositionedEvent,
+  StackedEvent,
+  WeekEvent,
+  WeekStart,
+} from '@/types';
 
 /** Minutes in a day — the calendar-view grid spans a full 0…MINUTES_PER_DAY. */
 const MINUTES_PER_DAY = 24 * 60;
@@ -154,25 +162,29 @@ function byStart(a: WeekEvent, b: WeekEvent): number {
 }
 
 /**
+ * Minute offsets of a day-clamped event piece from its own midnight. Both ends
+ * are measured from the start piece's midnight, so a piece clamped to the next
+ * midnight (as `buildDayColumns` produces) ends at `MINUTES_PER_DAY`.
+ */
+function eventMinutes(event: WeekEvent): { startMin: number; endMin: number } {
+  const dayStart = event.start.startOf('day');
+  const startMin = Math.min(MINUTES_PER_DAY, Math.max(0, event.start.diff(dayStart).as('minutes')));
+  const rawEnd = event.end.diff(dayStart).as('minutes');
+  const endMin = Math.min(MINUTES_PER_DAY, Math.max(rawEnd, startMin + 1));
+  return { startMin, endMin };
+}
+
+/**
  * Lay timed events onto the hour grid, splitting overlaps into side-by-side lanes.
  *
  * Events are grouped into clusters of transitively-overlapping pieces; within a
  * cluster each event takes the first lane whose previous event has ended, and
  * every event in the cluster reports the cluster's lane count so the column
  * width divides evenly. Non-overlapping events each get a full-width single lane.
- *
- * Both ends are measured from the start piece's midnight, so a piece clamped to
- * the next midnight (as `buildDayColumns` produces) ends at `MINUTES_PER_DAY`.
  */
 export function layoutDayEvents(events: WeekEvent[]): PositionedEvent[] {
   const placed: PositionedEvent[] = events
-    .map((event) => {
-      const dayStart = event.start.startOf('day');
-      const startMin = Math.min(MINUTES_PER_DAY, Math.max(0, event.start.diff(dayStart).as('minutes')));
-      const rawEnd = event.end.diff(dayStart).as('minutes');
-      const endMin = Math.min(MINUTES_PER_DAY, Math.max(rawEnd, startMin + 1));
-      return { event, startMin, endMin, col: 0, cols: 1 };
-    })
+    .map((event) => ({ event, ...eventMinutes(event), col: 0, cols: 1 }))
     // `map` already returned a fresh array, so sorting it in place is safe.
     // oxlint-disable-next-line no-array-sort
     .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
@@ -201,6 +213,29 @@ export function layoutDayEvents(events: WeekEvent[]): PositionedEvent[] {
   }
   closeCluster();
   return placed;
+}
+
+/**
+ * Lay timed events full width, stacked so none overlaps — the expanded calendar
+ * layout. Events keep their real start time until one would overlap the previous
+ * block, then cascade down. Each block is at least `minMinutes` tall so its text
+ * stays readable; `durationMin` preserves the event's true length.
+ */
+export function stackDayEvents(events: WeekEvent[], minMinutes: number): StackedEvent[] {
+  const sorted = events
+    .map((event) => ({ event, ...eventMinutes(event) }))
+    // `map` already returned a fresh array, so sorting it in place is safe.
+    // oxlint-disable-next-line no-array-sort
+    .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+
+  let cursor = -Infinity;
+  return sorted.map(({ event, startMin, endMin }) => {
+    const durationMin = endMin - startMin;
+    const heightMin = Math.max(minMinutes, durationMin);
+    const topMin = Math.max(startMin, cursor);
+    cursor = topMin + heightMin;
+    return { event, topMin, heightMin, durationMin };
+  });
 }
 
 /**
