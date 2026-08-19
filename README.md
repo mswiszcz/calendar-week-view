@@ -75,13 +75,19 @@ calendars:
 | `title` | string | — | Optional heading shown above the week strip. |
 | `calendars` | list | — | Required, at least one. See [Calendar options](#calendar-options). |
 | `weekStartsOn` | `monday` \| `sunday` | `monday` | First day of the week. |
-| `visibleDays` | number | `3` | Columns visible at once; the strip scrolls to reveal the rest. |
+| `viewMode` | `agenda` \| `calendar` | `agenda` | Agenda lists events per day; calendar spans them over an hour grid. |
+| `orientation` | `horizontal` \| `vertical` | `horizontal` | Agenda layout axis. Horizontal is the scrolling day strip; vertical stacks days full-width and scrolls down. Ignored in calendar view. |
+| `startHour` | number | `8` | Calendar view: the hour (0–23) the grid initially scrolls to. |
+| `visibleDays` | number | `3` | Columns visible at once; the strip scrolls to reveal the rest. In `lockToday` this is the number of days shown from today. |
 | `hideWeekend` | boolean | `false` | Show Monday–Friday only (5 columns). |
+| `lockToday` | boolean | `false` | Pin the view to today: navigation off, showing `visibleDays` days from today (`1` → today only). |
+| `highlightToday` | boolean | `true` | Tint today's column background. Off keeps only today's accent number and border. |
 | `height` | string | `520px` | **Minimum** height. The card fills its container (full height in a panel view) and never shrinks below this. |
-| `showNavigation` | boolean | `true` | Show the floating carousel day arrows and the **return-to-today** glyph. The strip pages by one view and rolls into adjacent weeks; swipe still works. |
+| `showNavigation` | boolean | `true` | Show the floating carousel arrows and the **return-to-today** glyph. The strip pages by one view and rolls into adjacent weeks; swipe still works. Forced off by `lockToday`. |
 | `showLegend` | boolean | `true` | Show the calendar legend chips. |
 | `legendToggle` | boolean | `true` | Click a legend chip to hide/show that calendar's events. |
-| `showClock` | boolean | `true` | Show the status header: live clock, date, and next upcoming event. |
+| `showClock` | boolean | `true` | Show the live clock and date in the status header. |
+| `showNextEvent` | boolean | `true` | Show the next upcoming event with a live countdown in the status header. |
 | `addEvents` | boolean | `false` | Show the floating quick-add button (needs ≥1 writable calendar). |
 | `addEventCalendars` | list of entity ids | all writable | Restrict the add dialog's calendar picker. |
 | `weather` | object | — | Optional hourly weather. See [Weather options](#weather-options). |
@@ -148,12 +154,24 @@ colors:
 | `text` | Primary text. |
 | `secondaryText` | Day names, event times, subtitles. |
 
+## Layout & views
+
+- **View mode** (`viewMode`): `agenda` lists each day's events; `calendar` spans timed
+  events over an hour grid that scrolls to `startHour` and shows a live now-line.
+- **Orientation** (`orientation`, agenda only): `horizontal` is the scrolling day strip;
+  `vertical` stacks days full-width and scrolls down — a natural fit for tall, narrow cards.
+  Calendar view keeps its horizontal time-grid regardless.
+- **Lock to today** (`lockToday`): pins the card to today, turns navigation off, and shows
+  `visibleDays` days starting at today (`1` → today only). The header, weather, and
+  quick-add still work; the carousel window and paging are simply not built.
+
 ## Status header
 
-When `showClock` is on (default), the top-left of the card carries a bold live
-**clock**, today's **date**, and the **next upcoming event** with a countdown
-(`in 30m`, `in 2h 15m`, `in 3d`). The clock ticks on its natural boundary —
-every minute, or every second if `clockFormat` includes seconds.
+The top-left of the card carries a bold live **clock** with today's **date**
+(`showClock`, default on) and the **next upcoming event** with a countdown
+(`in 30m`, `in 2h 15m`, `in 3d`) (`showNextEvent`, default on). The two are
+independent — show either, both, or neither. The clock ticks on its natural
+boundary — every minute, or every second if `clockFormat` includes seconds.
 
 The next-event picker prefers the nearest **timed** event and skips all-day
 events, with one exception: once no timed events remain **today**, an all-day

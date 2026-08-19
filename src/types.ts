@@ -5,6 +5,9 @@ export type WeekStart = 'monday' | 'sunday';
 /** Agenda lists events per day; calendar spans them over an hour grid. */
 export type ViewMode = 'agenda' | 'calendar';
 
+/** Agenda layout axis: a horizontal day strip, or days stacked vertically. */
+export type Orientation = 'horizontal' | 'vertical';
+
 export interface CalendarConfig {
   entity: string;
   name?: string;
@@ -38,10 +41,13 @@ export interface CardConfig {
   calendars: CalendarConfig[];
   weekStartsOn?: WeekStart;
   viewMode?: ViewMode;
+  orientation?: Orientation;
   startHour?: number;
   visibleDays?: number;
   hideWeekend?: boolean;
+  lockToday?: boolean;
   height?: string;
+  highlightToday?: boolean;
   showNavigation?: boolean;
   showLegend?: boolean;
   legendToggle?: boolean;
@@ -57,6 +63,7 @@ export interface CardConfig {
   timeFormat?: string;
   dateFormat?: string;
   showClock?: boolean;
+  showNextEvent?: boolean;
   clockFormat?: string;
   headerDateFormat?: string;
   texts?: Record<string, string>;
