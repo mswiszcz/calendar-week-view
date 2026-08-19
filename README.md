@@ -81,7 +81,9 @@ calendars:
 | `visibleDays` | number | `3` | Columns visible at once; the strip scrolls to reveal the rest. In `lockToday` this is the number of days shown from today. |
 | `hideWeekend` | boolean | `false` | Show Monday–Friday only (5 columns). |
 | `lockToday` | boolean | `false` | Pin the view to today: navigation off, showing `visibleDays` days from today (`1` → today only). |
-| `highlightToday` | boolean | `true` | Tint today's column background. Off keeps only today's accent number and border. |
+| `highlightToday` | boolean | `true` | Tint today's column background. |
+| `todayBorder` | boolean | `true` | Draw today's accent outline. |
+| `todayText` | boolean | `true` | Accent today's date (color + larger number). Off makes it read like any other day. |
 | `height` | string | `520px` | **Minimum** height. The card fills its container (full height in a panel view) and never shrinks below this. |
 | `showNavigation` | boolean | `true` | Show the floating carousel arrows and the **return-to-today** glyph. The strip pages by one view and rolls into adjacent weeks; swipe still works. Forced off by `lockToday`. |
 | `showLegend` | boolean | `true` | Show the calendar legend chips. |
