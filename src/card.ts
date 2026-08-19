@@ -3,8 +3,10 @@ import { state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { DateTime } from 'luxon';
+import { handleAction } from 'custom-card-helpers';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type {
+  ButtonConfig,
   CalendarConfig,
   CalendarEventInput,
   CardConfig,
@@ -552,6 +554,12 @@ export class CalendarWeekViewCard extends LitElement {
     this._dialog()?.show();
   }
 
+  /** Fire a custom button's Home Assistant action (navigate, url, call-service, …). */
+  private _runButton(btn: ButtonConfig): void {
+    if (!this._hass || !btn.tap_action) return;
+    handleAction(this, this._hass, { entity: '', tap_action: btn.tap_action }, 'tap');
+  }
+
   private _openEdit(e: WeekEvent): void {
     this._closeDetails();
     this._dialog()?.edit(e);
@@ -684,7 +692,10 @@ export class CalendarWeekViewCard extends LitElement {
           ${this._weatherError ? html`<ha-alert alert-type="warning">${this._weatherError}</ha-alert>` : ''}
           ${cfg.title ? html`<div class="card-title">${cfg.title}</div>` : ''}
           <div class="topbar">
-            ${this._renderStatus()} ${this._renderLegend()} ${calendar ? this._renderExpandToggle() : ''}
+            ${this._renderStatus()}
+            <div class="topbar-right">
+              ${this._renderLegend()} ${calendar ? this._renderExpandToggle() : ''} ${this._renderHeaderButtons()}
+            </div>
           </div>
           <div class=${classMap({ carousel: true, nonav: !this._navEnabled(), vert: this._isVertical() })}>
             ${this._renderArrow(-1)}
@@ -699,15 +710,7 @@ export class CalendarWeekViewCard extends LitElement {
             ${this._renderArrow(1)}
           </div>
         </div>
-        ${
-          cfg.addEvents && this._writableCalendars().length > 0
-            ? html`
-                <button class="fab" aria-label="Add event" @click=${this._openAdd}>
-                  <ha-icon icon="mdi:plus"></ha-icon>
-                </button>
-              `
-            : ''
-        }
+        ${this._renderFabRow()}
         <calendar-week-view-add-dialog
           .hass=${this._hass}
           .calendars=${this._writableCalendars()}
@@ -837,6 +840,67 @@ export class CalendarWeekViewCard extends LitElement {
       >
         <ha-icon icon=${this._expanded ? 'mdi:arrow-collapse-vertical' : 'mdi:arrow-expand-vertical'}></ha-icon>
       </button>
+    `;
+  }
+
+  /** Right-aligned custom header buttons: an icon with an optional label, each firing an HA action. */
+  private _renderHeaderButtons() {
+    const buttons = this._config.headerButtons ?? [];
+    if (buttons.length === 0) return html``;
+    return html`
+      <div class="header-actions">
+        ${buttons.map(
+          (btn) => html`
+            <button
+              class=${classMap({ hbtn: true, labeled: !!btn.name })}
+              style=${btn.color ? `--c:${btn.color}` : ''}
+              aria-label=${btn.name ?? btn.icon}
+              title=${btn.name ?? ''}
+              @click=${() => this._runButton(btn)}
+            >
+              <ha-icon icon=${btn.icon}></ha-icon>
+              ${btn.name ? html`<span class="hbtn-label">${btn.name}</span>` : ''}
+            </button>
+          `,
+        )}
+      </div>
+    `;
+  }
+
+  /**
+   * Bottom-right floating cluster: custom icon buttons in a row to the left of the
+   * quick-add `+` (which stays rightmost). Rendered whenever there are floating
+   * buttons or the quick-add is enabled, so custom buttons work without quick-add.
+   */
+  private _renderFabRow() {
+    const floating = this._config.floatingButtons ?? [];
+    const showAdd = !!this._config.addEvents && this._writableCalendars().length > 0;
+    if (floating.length === 0 && !showAdd) return html``;
+    return html`
+      <div class="fab-row">
+        ${floating.map(
+          (btn) => html`
+            <button
+              class="fbtn"
+              style=${btn.color ? `--c:${btn.color}` : ''}
+              aria-label=${btn.name ?? btn.icon}
+              title=${btn.name ?? ''}
+              @click=${() => this._runButton(btn)}
+            >
+              <ha-icon icon=${btn.icon}></ha-icon>
+            </button>
+          `,
+        )}
+        ${
+          showAdd
+            ? html`
+                <button class="fab" aria-label="Add event" @click=${this._openAdd}>
+                  <ha-icon icon="mdi:plus"></ha-icon>
+                </button>
+              `
+            : ''
+        }
+      </div>
     `;
   }
 

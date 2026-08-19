@@ -76,12 +76,17 @@ export const styles = css`
     color: var(--primary-text-color);
   }
 
-  /* floating add — bottom-right, tablet touch target */
-  .fab {
+  /* floating cluster — bottom-right, custom buttons in a row left of the quick-add + */
+  .fab-row {
     position: absolute;
     right: 16px;
     bottom: 16px;
     z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .fab {
     width: 56px;
     height: 56px;
     border-radius: 50%;
@@ -96,24 +101,57 @@ export const styles = css`
       transform 0.14s cubic-bezier(0.2, 0.7, 0.3, 1),
       filter 0.14s ease;
   }
-  .fab:hover {
-    transform: translateY(-3px) scale(1.05);
-    filter: brightness(1.05);
-  }
-  .fab:active {
-    transform: translateY(-1px) scale(0.99);
-  }
   .fab ha-icon {
     --mdc-icon-size: 26px;
   }
+  /* custom floating buttons — a neutral surface so the accent + stays the hero */
+  .fbtn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 1px solid var(--divider-color);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    background: var(--card-background-color);
+    color: var(--c, var(--primary-text-color));
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.18);
+    transition:
+      transform 0.14s cubic-bezier(0.2, 0.7, 0.3, 1),
+      filter 0.14s ease;
+  }
+  .fbtn ha-icon {
+    --mdc-icon-size: 22px;
+  }
+  .fab:hover,
+  .fbtn:hover {
+    transform: translateY(-3px) scale(1.05);
+    filter: brightness(1.05);
+  }
+  .fab:active,
+  .fbtn:active {
+    transform: translateY(-1px) scale(0.99);
+  }
 
-  /* topbar — status cluster on the left, calendar legend on the right */
+  /* topbar — status cluster on the left, right group (legend, controls, buttons) on the right */
   .topbar {
     display: flex;
     align-items: center;
     gap: 16px;
     flex-wrap: wrap;
     margin-bottom: 14px;
+  }
+  /* right side of the header — legend, calendar-view control, and custom buttons,
+     right-aligned and vertically centered against the status cluster */
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-left: auto;
+  }
+  .topbar-right:empty {
+    display: none;
   }
   /* status cluster — the live clock anchors the header; date and next event trail it */
   .status {
@@ -241,7 +279,6 @@ export const styles = css`
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
-    margin-left: auto;
   }
   .legend .cal {
     display: inline-flex;
@@ -267,10 +304,9 @@ export const styles = css`
     opacity: 0.45;
   }
 
-  /* calendar-view expand toggle — sits at the far right of the top bar */
+  /* calendar-view expand toggle — part of the header's right group */
   .expand-btn {
     flex: none;
-    margin-left: auto;
     width: 34px;
     height: 34px;
     border-radius: 999px;
@@ -296,6 +332,50 @@ export const styles = css`
   }
   .expand-btn ha-icon {
     --mdc-icon-size: 20px;
+  }
+
+  /* custom header buttons — pill chips at the far right, icon plus optional label */
+  .header-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .hbtn {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid var(--divider-color);
+    background: var(--neutral-tile);
+    color: var(--c, var(--secondary-text-color));
+    cursor: pointer;
+    font: inherit;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease,
+      border-color 0.15s ease;
+  }
+  .hbtn.labeled {
+    padding: 0 14px 0 12px;
+  }
+  .hbtn:hover {
+    background: var(--hover-tint);
+    color: var(--c, var(--primary-text-color));
+    border-color: color-mix(in srgb, var(--c, var(--primary-color)) 40%, var(--divider-color));
+  }
+  .hbtn ha-icon {
+    --mdc-icon-size: 20px;
+    flex: none;
+  }
+  .hbtn-label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--primary-text-color);
+    white-space: nowrap;
   }
 
   /* carousel — a side gutter holds the arrows inside the card, each half over

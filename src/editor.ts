@@ -1,7 +1,16 @@
 import { LitElement, css, html } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
-import type { CalendarConfig, CardConfig, UiColors, WeatherConfig } from '@/types';
+import type { ButtonConfig, CalendarConfig, CardConfig, UiColors, WeatherConfig } from '@/types';
+
+/** Per-button form fields, shared by header and floating button lists. */
+const BUTTON_SCHEMA = [
+  { name: 'icon', selector: { icon: {} } },
+  { name: 'name', selector: { text: {} } },
+  { name: 'tap_action', selector: { ui_action: {} } },
+];
+
+type ButtonKind = 'headerButtons' | 'floatingButtons';
 
 /** Fields shared by both view modes. */
 const GENERAL_SCHEMA = [
@@ -59,6 +68,9 @@ const ADVANCED_SCHEMA = [
 ];
 
 const LABELS: Record<string, string> = {
+  icon: 'Icon',
+  name: 'Label',
+  tap_action: 'Tap action',
   title: 'Title',
   weekStartsOn: 'Week starts on',
   viewMode: 'View mode',
@@ -287,6 +299,17 @@ export class CalendarWeekViewEditor extends LitElement {
         <div class="section">${this._renderWeather()}</div>
       </ha-expansion-panel>
 
+      <ha-expansion-panel outlined .header=${'Buttons'}>
+        <div class="section">
+          <div class="subhead">Header buttons</div>
+          <div class="hint">Custom buttons at the top-right of the header. Each runs a Home Assistant action.</div>
+          ${this._renderButtonList('headerButtons')}
+          <div class="subhead">Floating buttons</div>
+          <div class="hint">Custom buttons beside the floating + at the bottom-right.</div>
+          ${this._renderButtonList('floatingButtons')}
+        </div>
+      </ha-expansion-panel>
+
       <ha-expansion-panel outlined .header=${'Styling'}>
         <div class="section">
           <ha-formfield label="Card background">
@@ -363,6 +386,40 @@ export class CalendarWeekViewEditor extends LitElement {
               @change=${(e: Event) => this._calChanged(i, { initiallyHidden: (e.target as HTMLInputElement).checked || undefined })}
             ></ha-switch>
           </ha-formfield>
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderButtonList(kind: ButtonKind) {
+    const buttons = this._config[kind] ?? [];
+    return html`
+      ${buttons.map((btn, i) => this._renderButton(kind, btn, i))}
+      <button class="add-btn" @click=${() => this._addButton(kind)}>
+        <ha-icon icon="mdi:plus"></ha-icon> Add button
+      </button>
+    `;
+  }
+
+  private _renderButton(kind: ButtonKind, btn: ButtonConfig, i: number) {
+    return html`
+      <div class="cal">
+        <div class="cal-head">
+          <span class="cal-title">${btn.name || btn.icon || 'New button'}</span>
+          <button class="icon-btn" title="Remove button" @click=${() => this._removeButton(kind, i)}>
+            <ha-icon icon="mdi:trash-can-outline"></ha-icon>
+          </button>
+        </div>
+        <ha-form
+          .hass=${this.hass}
+          .data=${btn}
+          .schema=${BUTTON_SCHEMA}
+          .computeLabel=${(s: { name: string }) => LABELS[s.name] ?? s.name}
+          @value-changed=${(e: CustomEvent) => this._buttonChanged(kind, i, e.detail.value)}
+        ></ha-form>
+        <div class="color-row">
+          <label>Color</label>
+          ${this._colorInputs(btn.color ?? '', (v) => this._buttonChanged(kind, i, { color: v || undefined }))}
         </div>
       </div>
     `;
@@ -466,6 +523,32 @@ export class CalendarWeekViewEditor extends LitElement {
   private _calChanged(i: number, patch: Partial<CalendarConfig>): void {
     const calendars = (this._config.calendars ?? []).map((c, idx) => (idx === i ? { ...c, ...patch } : c));
     this._emit({ ...this._config, calendars });
+  }
+
+  private _addButton(kind: ButtonKind): void {
+    this._emit({ ...this._config, [kind]: [...(this._config[kind] ?? []), { icon: '' }] });
+  }
+
+  private _removeButton(kind: ButtonKind, i: number): void {
+    const buttons = (this._config[kind] ?? []).filter((_, idx) => idx !== i);
+    const config = { ...this._config };
+    if (buttons.length) config[kind] = buttons;
+    else delete config[kind];
+    this._emit(config);
+  }
+
+  private _buttonChanged(kind: ButtonKind, i: number, patch: Partial<ButtonConfig>): void {
+    const buttons = (this._config[kind] ?? []).map((b, idx) => (idx === i ? this._cleanButton({ ...b, ...patch }) : b));
+    this._emit({ ...this._config, [kind]: buttons });
+  }
+
+  /** Drop empty optional keys so a saved button stays minimal. */
+  private _cleanButton(btn: ButtonConfig): ButtonConfig {
+    const next = { ...btn };
+    if (!next.name) delete next.name;
+    if (!next.color) delete next.color;
+    if (!next.tap_action) delete next.tap_action;
+    return next;
   }
 
   private _weatherEntity(entity: string): void {
