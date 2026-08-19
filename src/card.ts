@@ -264,7 +264,10 @@ export class CalendarWeekViewCard extends LitElement {
   private _refreshUpcoming(windowEvents: WeekEvent[]): void {
     if (this._config.showNextEvent === false) return;
     const now = this._now();
-    if (this._columns.some((c) => c.isToday)) {
+    // The rendered window carries enough lookahead only in the seamless view; the
+    // lock-to-today span is just a few days, so fall through to the agenda fetch —
+    // otherwise the next event past the locked span would never surface.
+    if (!this._isLocked() && this._columns.some((c) => c.isToday)) {
       this._upcoming = pickUpcoming(now, windowEvents);
       return;
     }

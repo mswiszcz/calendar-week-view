@@ -361,22 +361,18 @@ export const styles = css`
     display: none;
   }
 
-  /* vertical layout — days stacked full-width, the whole strip scrolls down as one */
+  /* vertical layout — days stacked full-width; visibleDays rows fill the height
+     and the strip pages between days (the horizontal columns, rotated). Each row
+     keeps its own scrollable events list, so a busy day never pushes the rest away. */
   .week.vert {
     flex-direction: column;
     overflow-x: hidden;
     overflow-y: auto;
-    scroll-snap-type: none;
+    scroll-snap-type: y proximity;
   }
   .week.vert .day {
-    flex: none;
+    flex: 0 0 calc((100% - (var(--cwv-visible, 3) - 1) * 10px) / var(--cwv-visible, 3));
     width: 100%;
-    scroll-snap-align: none;
-  }
-  /* let each day grow to its content so the strip — not the day — owns the scroll */
-  .week.vert .events {
-    flex: none;
-    overflow: visible;
   }
   .day {
     position: relative;

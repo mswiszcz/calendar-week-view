@@ -159,7 +159,8 @@ colors:
 - **View mode** (`viewMode`): `agenda` lists each day's events; `calendar` spans timed
   events over an hour grid that scrolls to `startHour` and shows a live now-line.
 - **Orientation** (`orientation`, agenda only): `horizontal` is the scrolling day strip;
-  `vertical` stacks days full-width and scrolls down — a natural fit for tall, narrow cards.
+  `vertical` stacks days full-width — `visibleDays` rows fill the height and the strip pages
+  down for the rest, mirroring the horizontal columns. A natural fit for tall, narrow cards.
   Calendar view keeps its horizontal time-grid regardless.
 - **Lock to today** (`lockToday`): pins the card to today, turns navigation off, and shows
   `visibleDays` days starting at today (`1` → today only). The header, weather, and
