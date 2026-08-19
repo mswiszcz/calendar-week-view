@@ -13,7 +13,6 @@ import {
   layoutDayEvents,
   lockedDays,
   normalizeEvent,
-  stackDayEvents,
   supportsFeature,
   weekDays,
   windowDays,
@@ -282,33 +281,6 @@ describe('layoutDayEvents', () => {
     );
     expect([p.A.cols, p.B.cols, p.C.cols]).toEqual([2, 2, 2]);
     expect([p.A.col, p.B.col, p.C.col]).toEqual([0, 1, 0]);
-  });
-});
-
-describe('stackDayEvents', () => {
-  const timed = (summary: string, start: string, end: string): WeekEvent =>
-    normalizeEvent(
-      { summary, start: { dateTime: `2026-08-19T${start}` }, end: { dateTime: `2026-08-19T${end}` } },
-      cal,
-      false,
-    );
-
-  test('non-overlapping events keep their real time position', () => {
-    const s = stackDayEvents([timed('A', '09:00', '10:00'), timed('B', '11:00', '12:00')], 30);
-    expect(s.map((x) => x.topMin)).toEqual([540, 660]);
-    expect(s.map((x) => x.heightMin)).toEqual([60, 60]);
-  });
-
-  test('overlapping events cascade below the previous block', () => {
-    const s = stackDayEvents([timed('A', '09:00', '10:00'), timed('B', '09:30', '10:30')], 30);
-    expect(s[0].topMin).toBe(540);
-    expect(s[1].topMin).toBe(600); // pushed below A (540 + 60), not its real 570
-  });
-
-  test('applies the minimum height but preserves the true duration', () => {
-    const [s] = stackDayEvents([timed('A', '09:00', '09:10')], 30);
-    expect(s.heightMin).toBe(30);
-    expect(s.durationMin).toBe(10);
   });
 });
 

@@ -5,7 +5,6 @@ import type {
   DayColumn,
   EventStatus,
   PositionedEvent,
-  StackedEvent,
   WeekEvent,
   WeekStart,
 } from '@/types';
@@ -214,29 +213,6 @@ export function layoutDayEvents(events: WeekEvent[]): PositionedEvent[] {
   }
   closeCluster();
   return placed;
-}
-
-/**
- * Lay timed events full width, stacked so none overlaps — the expanded calendar
- * layout. Events keep their real start time until one would overlap the previous
- * block, then cascade down. Each block is at least `minMinutes` tall so its text
- * stays readable; `durationMin` preserves the event's true length.
- */
-export function stackDayEvents(events: WeekEvent[], minMinutes: number): StackedEvent[] {
-  const sorted = events
-    .map((event) => ({ event, ...eventMinutes(event) }))
-    // `map` already returned a fresh array, so sorting it in place is safe.
-    // oxlint-disable-next-line no-array-sort
-    .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
-
-  let cursor = -Infinity;
-  return sorted.map(({ event, startMin, endMin }) => {
-    const durationMin = endMin - startMin;
-    const heightMin = Math.max(minMinutes, durationMin);
-    const topMin = Math.max(startMin, cursor);
-    cursor = topMin + heightMin;
-    return { event, topMin, heightMin, durationMin };
-  });
 }
 
 /**

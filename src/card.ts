@@ -14,7 +14,6 @@ import type {
   DayColumn,
   HourlyForecast,
   RecurrenceScope,
-  StackedEvent,
   WeekEvent,
 } from '@/types';
 import {
@@ -32,7 +31,6 @@ import {
   lockedDays,
   normalizeEvent,
   pickUpcoming,
-  stackDayEvents,
   supportsFeature,
   todayRelation,
   windowDays,
@@ -69,9 +67,6 @@ const HOUR_H = 56;
 const ALLDAY_H = 46;
 /** Smallest rendered height for a timed block, so brief events stay tappable. */
 const MIN_EVENT_H = 20;
-/** Minimum block height in the expanded layout — a readable two lines, so the
- *  toggle visibly enlarges cramped/short events, not just overlapping ones. */
-const EXPANDED_MIN_EVENT_H = 44;
 
 type ForecastSlot = { condition: string; temperature: number };
 
@@ -134,12 +129,14 @@ export class CalendarWeekViewCard extends LitElement {
   }
 
   /**
-   * Sections-view sizing. Vertical agenda has no internal scroll, so let the grid
-   * grow to the full-height day list (`rows: 'auto'`) instead of clamping it to a
-   * fixed row count; other modes keep the default fixed-height cell.
+   * Sections-view sizing. Modes that grow to their content instead of scrolling
+   * internally — the vertical agenda, and the expanded calendar (whole day shown
+   * at once) — ask for an auto-height cell (`rows: 'auto'`); every other mode keeps
+   * the default fixed-height cell and scrolls within it.
    */
   getGridOptions(): { rows?: number | 'auto' } {
-    return this._config && this._isVertical() ? { rows: 'auto' } : {};
+    if (!this._config) return {};
+    return this._isVertical() || (this._isCalendar() && this._expanded) ? { rows: 'auto' } : {};
   }
 
   set hass(hass: HomeAssistant) {
@@ -453,6 +450,20 @@ export class CalendarWeekViewCard extends LitElement {
     return (this._config.viewMode ?? 'agenda') === 'calendar';
   }
 
+  /**
+   * Toggle the calendar between the bounded scrolling viewport and the full-day
+   * expansion. Collapsing restores the start-hour scroll; the horizontal day
+   * position is left untouched so paging away and back survives the toggle.
+   */
+  private _expandToggle(): void {
+    this._expanded = !this._expanded;
+    if (this._expanded) return;
+    void this.updateComplete.then(() => {
+      const strip = this._strip();
+      if (strip) strip.scrollTop = this._startHour() * HOUR_H;
+    });
+  }
+
   /** Vertical layout applies to agenda view only; calendar keeps its horizontal time-grid. */
   private _isVertical(): boolean {
     return (this._config.orientation ?? 'horizontal') === 'vertical' && !this._isCalendar();
@@ -712,15 +723,10 @@ export class CalendarWeekViewCard extends LitElement {
     const calendar = this._isCalendar();
     const expanded = calendar && this._expanded;
     const hasAllDay = calendar && this._columns.some((c) => c.allDayEvents.length > 0);
-    const stacks = expanded
-      ? this._columns.map((c) => stackDayEvents(c.timedEvents, (EXPANDED_MIN_EVENT_H / HOUR_H) * 60))
-      : null;
-    const gridMin = stacks ? Math.max(1440, ...stacks.flatMap((s) => s.map((x) => x.topMin + x.heightMin))) : 1440;
     const styleParts = [
       `--cwv-visible:${cfg.visibleDays ?? 3}`,
       `--cwv-hour-h:${HOUR_H}px`,
       `--cwv-allday-h:${hasAllDay ? ALLDAY_H : 0}px`,
-      `--cwv-grid-h:${(gridMin / 60) * HOUR_H}px`,
     ];
     if (cfg.height) styleParts.push(`--cwv-min-h:${cfg.height}`);
     for (const [key, token] of Object.entries(COLOR_TOKENS)) {
@@ -737,6 +743,8 @@ export class CalendarWeekViewCard extends LitElement {
           notodayborder: cfg.todayBorder === false,
           notodaytext: cfg.todayText === false,
           vagenda: this._isVertical(),
+          calendar,
+          calexpanded: expanded,
         })}
         style=${styleParts.join(';')}
       >
@@ -757,7 +765,7 @@ export class CalendarWeekViewCard extends LitElement {
               ${repeat(
                 this._columns,
                 (col) => col.date.toISODate() ?? '',
-                (col, i) => this._renderDay(col, calendar, stacks ? stacks[i] : undefined),
+                (col) => this._renderDay(col, calendar),
               )}
             </div>
             ${this._renderArrow(1)}
@@ -880,16 +888,20 @@ export class CalendarWeekViewCard extends LitElement {
     `;
   }
 
-  /** Calendar-view control: expand overlapping events into a full-width stacked layout. */
+  /**
+   * Calendar-view control: expand the day grid to show the whole day at once (the
+   * card grows, the dashboard scrolls), vs. the default bounded viewport that
+   * scrolls internally by hour.
+   */
   private _renderExpandToggle() {
-    const label = this._expanded ? 'Collapse overlapping events' : 'Expand overlapping events';
+    const label = this._expanded ? 'Collapse to scrolling view' : 'Expand to the whole day';
     return html`
       <button
         class=${classMap({ 'expand-btn': true, on: this._expanded })}
         aria-label=${label}
         title=${label}
         aria-pressed=${this._expanded ? 'true' : 'false'}
-        @click=${() => (this._expanded = !this._expanded)}
+        @click=${() => this._expandToggle()}
       >
         <ha-icon icon=${this._expanded ? 'mdi:arrow-collapse-vertical' : 'mdi:arrow-expand-vertical'}></ha-icon>
       </button>
@@ -957,7 +969,7 @@ export class CalendarWeekViewCard extends LitElement {
     `;
   }
 
-  private _renderDay(col: DayColumn, calendar = false, stack?: StackedEvent[]) {
+  private _renderDay(col: DayColumn, calendar = false) {
     const allday = col.allDayEvents.length
       ? html`<div class="allday">${col.allDayEvents.map((e) => this._renderPill(e))}</div>`
       : '';
@@ -978,7 +990,7 @@ export class CalendarWeekViewCard extends LitElement {
             }
             ${allday}
           </div>
-          ${this._renderGrid(col, stack)}
+          ${this._renderGrid(col)}
         </div>
       `;
     }
@@ -1026,28 +1038,21 @@ export class CalendarWeekViewCard extends LitElement {
   }
 
   /**
-   * Render a day's timed events. Normally overlaps split into side-by-side lanes;
-   * when expanded (`stack` given) each event is full width and stacked so nothing
-   * is clipped. A 1px inset on every block keeps consecutive events from merging.
+   * Render a day's timed events onto the hour grid. Overlapping events split into
+   * side-by-side lanes; a 1px inset on every block keeps consecutive events from
+   * merging. Hovering a clipped block pops it to full column width (see styles).
    */
-  private _renderGrid(col: DayColumn, stack?: StackedEvent[]) {
-    const blocks = stack
-      ? stack.map((s) => {
-          const top = (s.topMin / 60) * HOUR_H + 1;
-          const height = (s.heightMin / 60) * HOUR_H - 2;
-          const style = `top:${top}px;height:${height}px;left:2px;right:2px;--tev-min-h:${height}px;--c:${s.event.color}`;
-          return this._tevBlock(s.event, style, s.durationMin);
-        })
-      : layoutDayEvents(col.timedEvents).map((p) => {
-          const top = (p.startMin / 60) * HOUR_H + 1;
-          const height = Math.max(MIN_EVENT_H, ((p.endMin - p.startMin) / 60) * HOUR_H) - 2;
-          const width = 100 / p.cols;
-          const left = p.col * width;
-          const style =
-            `top:${top}px;height:${height}px;left:calc(${left}% + 2px);` +
-            `width:calc(${width}% - 4px);--tev-min-h:${height}px;--c:${p.event.color}`;
-          return this._tevBlock(p.event, style, p.endMin - p.startMin);
-        });
+  private _renderGrid(col: DayColumn) {
+    const blocks = layoutDayEvents(col.timedEvents).map((p) => {
+      const top = (p.startMin / 60) * HOUR_H + 1;
+      const height = Math.max(MIN_EVENT_H, ((p.endMin - p.startMin) / 60) * HOUR_H) - 2;
+      const width = 100 / p.cols;
+      const left = p.col * width;
+      const style =
+        `top:${top}px;height:${height}px;left:calc(${left}% + 2px);` +
+        `width:calc(${width}% - 4px);--tev-min-h:${height}px;--c:${p.event.color}`;
+      return this._tevBlock(p.event, style, p.endMin - p.startMin);
+    });
     return html` <div class="grid">${blocks} ${col.isToday ? this._renderNow() : ''}</div> `;
   }
 

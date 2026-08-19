@@ -164,19 +164,6 @@ export interface PositionedEvent {
   cols: number;
 }
 
-/**
- * A timed event placed full width in the expanded calendar layout. `topMin` is
- * where the block starts (minutes from midnight, pushed down to clear the
- * previous block); `heightMin` is its rendered height; `durationMin` is the
- * event's true length (for single-line rendering of short events).
- */
-export interface StackedEvent {
-  event: WeekEvent;
-  topMin: number;
-  heightMin: number;
-  durationMin: number;
-}
-
 export interface HourlyForecast {
   datetime: string;
   condition: string;
