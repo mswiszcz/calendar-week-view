@@ -123,12 +123,19 @@ describe('weatherSamplesForEvent', () => {
   test('no samples for a past event', () => {
     expect(weatherSamplesForEvent(timed('2026-08-19T06:00', '2026-08-19T07:00'), now, map)).toHaveLength(0);
   });
-  test('today / tonight / tomorrow for a multi-day event', () => {
+  test('event day / night / next day for a multi-day event', () => {
     const s = weatherSamplesForEvent(allDay('2026-08-19', '2026-08-21'), now, map);
-    expect(s.map((x) => x.kind)).toEqual(['today', 'tonight', 'tomorrow']);
+    expect(s.map((x) => x.kind)).toEqual(['eventday', 'night', 'nextday']);
     expect(s.map((x) => x.temperature)).toEqual([24, 15, 19]);
   });
-  test('no samples for an all-day event beyond tomorrow', () => {
+  test('anchors the outlook to a future event day, not today', () => {
+    // now is 2026-08-19; the only future slot is 2026-08-20 12:00 (rainy 19). An
+    // all-day event on the 20th must sample its own noon, not today's (sunny 24).
+    const s = weatherSamplesForEvent(allDay('2026-08-20', '2026-08-21'), now, map);
+    expect(s.map((x) => x.kind)).toEqual(['eventday']);
+    expect(s.map((x) => x.temperature)).toEqual([19]);
+  });
+  test('no samples for an all-day event beyond the forecast horizon', () => {
     expect(weatherSamplesForEvent(allDay('2026-08-25', '2026-08-26'), now, map)).toHaveLength(0);
   });
 });

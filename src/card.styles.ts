@@ -1151,11 +1151,19 @@ export const styles = css`
   }
 
   /* weather strip — the forecast across the event; glyphs stay monochrome like
-     the grid's, and the leading tile (event start / today) takes the accent */
+     the grid's, and the leading tile (event start / event day) takes the accent */
   .wx-strip {
     margin: 10px 5px 6px;
     padding-top: 13px;
     border-top: 1px solid var(--divider-color);
+  }
+  .wx-strip.clickable {
+    cursor: pointer;
+    border-radius: 0 0 13px 13px;
+    outline-offset: 2px;
+  }
+  .wx-strip.clickable:hover .wx-strip-h {
+    color: var(--primary-text-color);
   }
   .wx-strip-h {
     display: flex;
