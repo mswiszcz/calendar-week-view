@@ -1,6 +1,6 @@
 {
   "name": "calendar-week-view",
-  "version": "1.8.4",
+  "version": "1.8.5",
   "description": "Home Assistant Lovelace card: current-week calendar view with quick add and hourly weather.",
   "type": "module",
   "license": "MIT",
