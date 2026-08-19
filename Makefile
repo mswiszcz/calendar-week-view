@@ -31,9 +31,9 @@ push:
 	$(MAKE) verify
 	git push -u origin "$(BRANCH)"
 	gh pr create --fill --base main
-	gh pr merge --merge --delete-branch
-	git checkout main
-	git pull --ff-only
-	git tag "$(TAG)"
+	gh pr merge --merge
+	git push origin --delete "$(BRANCH)"
+	git fetch origin main
+	git tag "$(TAG)" FETCH_HEAD
 	git push origin "$(TAG)"
-	@echo "Released $(TAG) — release.yml will build and publish it."
+	@echo "Released $(TAG) — release.yml will build and publish it. Still on $(BRANCH)."
