@@ -52,6 +52,50 @@ export function windowDays(firstWeekStart: DateTime, weeks: number, dayCount: nu
   return days;
 }
 
+/**
+ * Days for the lock-to-today view: `count` (>= 1) consecutive days starting at
+ * `today`, skipping Saturday and Sunday when `hideWeekend` — so a weekend-hidden
+ * lock lands on the next weekday rather than a blank column.
+ */
+export function lockedDays(today: DateTime, count: number, hideWeekend: boolean): DateTime[] {
+  const want = Math.max(1, Math.round(count));
+  const days: DateTime[] = [];
+  let d = today.startOf('day');
+  while (days.length < want) {
+    if (!hideWeekend || (d.weekday !== 6 && d.weekday !== 7)) days.push(d);
+    d = d.plus({ days: 1 });
+  }
+  return days;
+}
+
+/**
+ * First child index whose far edge clears `edge` (a scroll-space coordinate),
+ * i.e. the first column still visible past the strip's leading edge. `starts`
+ * and `sizes` are the children's main-axis offsets and lengths; falls back to 0
+ * when `edge` lies past every child. Axis-agnostic (x or y).
+ */
+export function edgeIndex(starts: number[], sizes: number[], edge: number): number {
+  for (let i = 0; i < starts.length; i++) {
+    if (starts[i] + sizes[i] > edge + 1) return i;
+  }
+  return 0;
+}
+
+/** Last child index that still begins before `edge`; 0 when none do. Axis-agnostic. */
+export function lastVisibleIndex(starts: number[], edge: number): number {
+  let last = 0;
+  for (let i = 0; i < starts.length; i++) {
+    if (starts[i] < edge - 1) last = i;
+    else break;
+  }
+  return last;
+}
+
+/** Clamp a scroll target to the strip's valid `[0, max]` range. */
+export function clampScroll(target: number, max: number): number {
+  return Math.max(0, Math.min(max, target));
+}
+
 /** All-day when both ends are date-only (or the span is whole-day aligned ≥24h). */
 export function isAllDay(start: DateTime, end: DateTime): boolean {
   const startMidnight = start.hasSame(start.startOf('day'), 'millisecond');

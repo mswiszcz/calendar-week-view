@@ -269,6 +269,14 @@ export const styles = css`
     align-items: stretch;
     padding: 0 22px;
   }
+  /* vertical layout pages up/down, so the arrow gutter moves to top/bottom */
+  .carousel.vert {
+    padding: 22px 0;
+  }
+  /* no navigation shown — reclaim the arrow gutter for the strip */
+  .carousel.nonav {
+    padding: 0;
+  }
   .car-arrow {
     position: absolute;
     top: 50%;
@@ -308,6 +316,27 @@ export const styles = css`
   .car-arrow.right:active {
     transform: translateY(-50%) scale(0.97);
   }
+  /* vertical paging arrows — centered on the top and bottom edges */
+  .car-arrow.up,
+  .car-arrow.down {
+    top: auto;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .car-arrow.up {
+    top: 2px;
+  }
+  .car-arrow.down {
+    bottom: 2px;
+  }
+  .car-arrow.up:hover,
+  .car-arrow.down:hover {
+    transform: translateX(-50%) scale(1.07);
+  }
+  .car-arrow.up:active,
+  .car-arrow.down:active {
+    transform: translateX(-50%) scale(0.97);
+  }
   .car-arrow ha-icon {
     --mdc-icon-size: 22px;
   }
@@ -331,6 +360,24 @@ export const styles = css`
   .week::-webkit-scrollbar {
     display: none;
   }
+
+  /* vertical layout — days stacked full-width, the whole strip scrolls down as one */
+  .week.vert {
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scroll-snap-type: none;
+  }
+  .week.vert .day {
+    flex: none;
+    width: 100%;
+    scroll-snap-align: none;
+  }
+  /* let each day grow to its content so the strip — not the day — owns the scroll */
+  .week.vert .events {
+    flex: none;
+    overflow: visible;
+  }
   .day {
     position: relative;
     flex: 0 0 calc((100% - (var(--cwv-visible, 3) - 1) * 10px) / var(--cwv-visible, 3));
@@ -347,6 +394,16 @@ export const styles = css`
     border-radius: 16px;
     border: 1.5px solid color-mix(in srgb, var(--primary-color) 42%, var(--divider-color));
     z-index: 1;
+  }
+  /* highlightToday off — drop today's background fill, keep the border + accent number */
+  ha-card.nohighlight .day.today {
+    background: var(--neutral-tile);
+  }
+  ha-card.nohighlight .day.cal.today .cal-head {
+    background: var(--card-background-color);
+  }
+  ha-card.nohighlight .day.cal.today .grid {
+    background-color: transparent;
   }
 
   .day-head {

@@ -17,10 +17,14 @@ import type {
 import {
   buildDayColumns,
   CalendarFeature,
+  clampScroll,
   computeWeekStart,
   dayCountFor,
+  edgeIndex,
   formatCountdown,
+  lastVisibleIndex,
   layoutDayEvents,
+  lockedDays,
   normalizeEvent,
   pickUpcoming,
   supportsFeature,
@@ -114,7 +118,7 @@ export class CalendarWeekViewCard extends LitElement {
     const first = !this._hass;
     this._hass = hass;
     if (first && this._config) {
-      this._scheduleClock();
+      this._scheduleTick();
       void this._fetchAndBuild();
     }
   }
@@ -126,7 +130,7 @@ export class CalendarWeekViewCard extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     if (this._config && this._hass) {
-      this._scheduleClock();
+      this._scheduleTick();
       void this._fetchAndBuild();
     }
   }
@@ -140,17 +144,28 @@ export class CalendarWeekViewCard extends LitElement {
     this._weatherUnsub = undefined;
   }
 
-  /** Tick the header clock on the next natural boundary — per second only if the format shows seconds. */
-  private _scheduleClock(): void {
+  /** Whether the header has a live element (clock or next-event) that needs periodic ticks. */
+  private _headerLive(): boolean {
+    return this._config?.showClock !== false || this._config?.showNextEvent !== false;
+  }
+
+  /**
+   * Tick the header on the next natural boundary — driving both the clock and the
+   * next-event countdown. Per second only when a visible clock shows seconds.
+   */
+  private _scheduleTick(): void {
     if (this._clockTimer) window.clearTimeout(this._clockTimer);
-    if (!this._hass || this._config?.showClock === false) return;
-    const showsSeconds = /[sS]/.test(this._config?.clockFormat ?? 'HH:mm');
+    if (!this._hass || !this._headerLive()) return;
+    const showsSeconds = this._config?.showClock !== false && /[sS]/.test(this._config?.clockFormat ?? 'HH:mm');
     const now = this._now();
     const ms = showsSeconds ? 1000 - now.millisecond : (60 - now.second) * 1000 - now.millisecond;
-    this._clockTimer = window.setTimeout(() => {
-      this._tick++;
-      this._scheduleClock();
-    }, Math.max(250, ms));
+    this._clockTimer = window.setTimeout(
+      () => {
+        this._tick++;
+        this._scheduleTick();
+      },
+      Math.max(250, ms),
+    );
   }
 
   private _now(): DateTime {
@@ -204,16 +219,21 @@ export class CalendarWeekViewCard extends LitElement {
     this._loading = true;
     try {
       const cfg = this._config;
-      const firstWeek = computeWeekStart(this._now(), cfg.weekStartsOn ?? 'monday', this._windowOffset);
-      const count = dayCountFor(cfg.hideWeekend ?? false);
-      const days = windowDays(firstWeek, WINDOW_WEEKS, count);
+      const now = this._now();
+      const days = this._isLocked()
+        ? lockedDays(now, cfg.visibleDays ?? 3, cfg.hideWeekend ?? false)
+        : windowDays(
+            computeWeekStart(now, cfg.weekStartsOn ?? 'monday', this._windowOffset),
+            WINDOW_WEEKS,
+            dayCountFor(cfg.hideWeekend ?? false),
+          );
       const start = days[0];
       const end = days[days.length - 1].plus({ days: 1 });
       const { events, errors } = await this._fetchRange(start, end);
       if (!this.isConnected) return;
       this._error = errors.join('\n');
       const finalEvents = this._dedupe(events);
-      this._columns = buildDayColumns({ days, now: this._now(), events: finalEvents });
+      this._columns = buildDayColumns({ days, now, events: finalEvents });
       this._refreshUpcoming(finalEvents);
       if (cfg.weather) void this._subscribeWeather();
     } finally {
@@ -242,7 +262,7 @@ export class CalendarWeekViewCard extends LitElement {
    * correct even while the strip is scrolled weeks away.
    */
   private _refreshUpcoming(windowEvents: WeekEvent[]): void {
-    if (this._config.showClock === false) return;
+    if (this._config.showNextEvent === false) return;
     const now = this._now();
     if (this._columns.some((c) => c.isToday)) {
       this._upcoming = pickUpcoming(now, windowEvents);
@@ -303,46 +323,44 @@ export class CalendarWeekViewCard extends LitElement {
     return Array.from(strip.querySelectorAll<HTMLElement>(':scope > .day'));
   }
 
-  /** Width the sticky hour gutter covers at the strip's left edge (0 in agenda view). */
+  /** Main-axis length the sticky hour gutter covers at the strip's leading edge (0 in agenda view). */
   private _lead(strip: HTMLElement): number {
-    return strip.querySelector<HTMLElement>(':scope > .gutter')?.offsetWidth ?? 0;
+    const gutter = strip.querySelector<HTMLElement>(':scope > .gutter');
+    return gutter ? this._axis().size(gutter) : 0;
   }
 
-  /** Left of a day column relative to the strip's content origin (scroll-independent). */
-  private _childLeft(strip: HTMLElement, i: number): number {
+  /** Main-axis offset of a day column from the strip's content origin (scroll-independent). */
+  private _childOffset(strip: HTMLElement, i: number): number {
     const child = this._days(strip)[i];
     if (!child) return 0;
-    return child.getBoundingClientRect().left - strip.getBoundingClientRect().left + strip.scrollLeft;
+    const ax = this._axis();
+    return ax.rectStart(child) - ax.rectStart(strip) + ax.scroll(strip);
   }
 
-  /** Index of the first day column whose right edge clears the gutter into view. */
-  private _leftmostIndex(strip: HTMLElement): number {
-    const days = this._days(strip);
-    const edge = strip.scrollLeft + this._lead(strip);
-    for (let i = 0; i < days.length; i++) {
-      if (this._childLeft(strip, i) + days[i].offsetWidth > edge + 1) return i;
-    }
-    return 0;
+  /** Measured main-axis offsets of every day column, in order. */
+  private _dayOffsets(strip: HTMLElement): number[] {
+    return this._days(strip).map((_day, i) => this._childOffset(strip, i));
   }
 
-  /** Index of the last day column whose left edge is still within the viewport. */
-  private _rightmostIndex(strip: HTMLElement): number {
-    const days = this._days(strip);
-    const edge = strip.scrollLeft + strip.clientWidth;
-    let last = 0;
-    for (let i = 0; i < days.length; i++) {
-      if (this._childLeft(strip, i) < edge - 1) last = i;
-      else break;
-    }
-    return last;
+  /** Index of the first day column still visible past the strip's leading edge. */
+  private _firstVisibleIndex(strip: HTMLElement): number {
+    const ax = this._axis();
+    const sizes = this._days(strip).map((d) => ax.size(d));
+    return edgeIndex(this._dayOffsets(strip), sizes, ax.scroll(strip) + this._lead(strip));
+  }
+
+  /** Index of the last day column whose leading edge is still within the viewport. */
+  private _lastVisibleIndex(strip: HTMLElement): number {
+    const ax = this._axis();
+    return lastVisibleIndex(this._dayOffsets(strip), ax.scroll(strip) + ax.client(strip));
   }
 
   /** Recompute whether today sits within the visible day range, and which way it lies. */
   private _updateTodayVisibility(): void {
     const strip = this._strip();
     if (!strip || this._columns.length === 0) return;
-    const left = this._columns[this._leftmostIndex(strip)]?.date;
-    const right = this._columns[this._rightmostIndex(strip)]?.date;
+    const left = this._columns[this._firstVisibleIndex(strip)]?.date;
+    const right = this._columns[this._lastVisibleIndex(strip)]?.date;
     if (!left || !right) return;
     const rel = todayRelation(this._now(), left, right);
     if ((rel === 0) !== this._todayVisible) this._todayVisible = rel === 0;
@@ -354,12 +372,13 @@ export class CalendarWeekViewCard extends LitElement {
   }
 
   /**
-   * Absolute scrollLeft that lands day column `i` at the strip's left edge, past
-   * the calendar-view hour gutter, clamped to range.
+   * Absolute scroll offset that lands day column `i` at the strip's leading edge,
+   * past the calendar-view hour gutter, clamped to range. Axis-aware.
    */
-  private _columnScrollLeft(strip: HTMLElement, i: number): number {
-    const max = Math.max(0, strip.scrollWidth - strip.clientWidth);
-    return Math.max(0, Math.min(max, this._childLeft(strip, i) - this._lead(strip)));
+  private _columnScroll(strip: HTMLElement, i: number): number {
+    const ax = this._axis();
+    const max = Math.max(0, ax.scrollSize(strip) - ax.client(strip));
+    return clampScroll(this._childOffset(strip, i) - this._lead(strip), max);
   }
 
   /**
@@ -373,19 +392,19 @@ export class CalendarWeekViewCard extends LitElement {
     const strip = this._strip();
     if (!strip || this._columns.length === 0) return;
     const step = Math.max(1, Math.round(this._config.visibleDays ?? 3));
-    const base = this._pageTargetCol ?? this._leftmostIndex(strip);
+    const base = this._pageTargetCol ?? this._firstVisibleIndex(strip);
     const target = Math.max(0, Math.min(this._columns.length - 1, base + dir * step));
     this._pageTargetCol = target;
-    strip.scrollTo({ left: this._columnScrollLeft(strip, target), behavior: this._reducedMotion() ? 'auto' : 'smooth' });
+    this._axis().scrollTo(strip, this._columnScroll(strip, target), this._reducedMotion() ? 'auto' : 'smooth');
   }
 
-  /** Jump to today: smooth-scroll it to the left edge if loaded, otherwise reset the window and land it. */
+  /** Jump to today: smooth-scroll it to the leading edge if loaded, otherwise reset the window and land it. */
   private _goToday(): void {
     this._pageTargetCol = undefined;
     const strip = this._strip();
     const idx = this._columns.findIndex((c) => c.isToday);
     if (strip && idx >= 0) {
-      strip.scrollTo({ left: this._columnScrollLeft(strip, idx), behavior: this._reducedMotion() ? 'auto' : 'smooth' });
+      this._axis().scrollTo(strip, this._columnScroll(strip, idx), this._reducedMotion() ? 'auto' : 'smooth');
       return;
     }
     // Today is outside the loaded window: reset it and let updated() land today on
@@ -401,6 +420,42 @@ export class CalendarWeekViewCard extends LitElement {
 
   private _isCalendar(): boolean {
     return (this._config.viewMode ?? 'agenda') === 'calendar';
+  }
+
+  /** Vertical layout applies to agenda view only; calendar keeps its horizontal time-grid. */
+  private _isVertical(): boolean {
+    return (this._config.orientation ?? 'horizontal') === 'vertical' && !this._isCalendar();
+  }
+
+  private _isLocked(): boolean {
+    return !!this._config.lockToday;
+  }
+
+  /** Paging arrows, return glyph, and the seamless window are active only when not locked. */
+  private _navEnabled(): boolean {
+    return this._config.showNavigation !== false && !this._isLocked();
+  }
+
+  /**
+   * Reader/writer set for the strip's main scroll axis, so all scroll geometry
+   * works for both the horizontal day strip and the vertical stacked layout.
+   */
+  private _axis() {
+    const vert = this._isVertical();
+    return {
+      vert,
+      scroll: (el: HTMLElement) => (vert ? el.scrollTop : el.scrollLeft),
+      setScroll: (el: HTMLElement, n: number) => {
+        if (vert) el.scrollTop = n;
+        else el.scrollLeft = n;
+      },
+      scrollTo: (el: HTMLElement, n: number, behavior: ScrollBehavior) =>
+        el.scrollTo(vert ? { top: n, behavior } : { left: n, behavior }),
+      client: (el: HTMLElement) => (vert ? el.clientHeight : el.clientWidth),
+      scrollSize: (el: HTMLElement) => (vert ? el.scrollHeight : el.scrollWidth),
+      size: (el: HTMLElement) => (vert ? el.offsetHeight : el.offsetWidth),
+      rectStart: (el: HTMLElement) => (vert ? el.getBoundingClientRect().top : el.getBoundingClientRect().left),
+    };
   }
 
   /** Configured start hour, clamped to a valid 0–23 grid row. */
@@ -423,9 +478,11 @@ export class CalendarWeekViewCard extends LitElement {
   private async _afterScroll(): Promise<void> {
     const strip = this._strip();
     if (!strip || this._columns.length === 0 || this._loading || this._jumping) return;
+    // Locked-to-today renders a fixed span with no seamless window — never recenter.
+    if (this._isLocked()) return;
     this._pageTargetCol = undefined;
     this._updateTodayVisibility();
-    const idx = this._leftmostIndex(strip);
+    const idx = this._firstVisibleIndex(strip);
     const count = dayCountFor(this._config.hideWeekend ?? false);
     if (idx < count) await this._recenter(-1, strip, idx);
     else if (idx >= (WINDOW_WEEKS - 1) * count) await this._recenter(1, strip, idx);
@@ -436,14 +493,15 @@ export class CalendarWeekViewCard extends LitElement {
    * screen position, so the swap of the off-screen buffer week is invisible.
    */
   private async _recenter(dir: 1 | -1, strip: HTMLElement, idx: number): Promise<void> {
+    const ax = this._axis();
     const anchorDate = this._columns[idx].date.toISODate() ?? '';
-    const viewportX = this._childLeft(strip, idx) - strip.scrollLeft;
+    const viewportOffset = this._childOffset(strip, idx) - ax.scroll(strip);
     this._windowOffset += dir;
     await this._fetchAndBuild();
     await this.updateComplete;
     const after = this._strip();
     const i = this._columns.findIndex((c) => c.date.toISODate() === anchorDate);
-    if (after && i >= 0) after.scrollLeft = this._childLeft(after, i) - viewportX;
+    if (after && i >= 0) ax.setScroll(after, this._childOffset(after, i) - viewportOffset);
     // The rebuild remapped every column index; a page target captured against the
     // old window (a click during the refetch) is now stale — drop it so the next
     // click pages from the current leftmost.
@@ -514,19 +572,27 @@ export class CalendarWeekViewCard extends LitElement {
   }
 
   /**
-   * Land the strip with today at the left edge on the first render that contains
-   * it — the initial load (instant) or a Today reset (smooth, which also
-   * retargets any page scroll still animating). Waits out the today-less render
-   * that a `_windowOffset` change produces before its refetch resolves.
+   * Land the strip with today at the leading edge (left horizontally, top
+   * vertically) on the first render that contains it — the initial load
+   * (instant) or a Today reset (smooth, which also retargets any page scroll
+   * still animating). Waits out the today-less render that a `_windowOffset`
+   * change produces before its refetch resolves.
    */
   protected updated(): void {
     if (!this._scrollToToday) return;
     const strip = this._strip();
     if (!strip || this._columns.length === 0) return;
+    // Locked: the span starts at today, so there is no window landing to wait for —
+    // only the calendar grid needs its start-hour scroll.
+    if (this._isLocked()) {
+      if (this._isCalendar()) strip.scrollTop = this._startHour() * HOUR_H;
+      this._scrollToToday = false;
+      return;
+    }
     const idx = this._columns.findIndex((c) => c.isToday);
     if (idx < 0) return;
     const behavior: ScrollBehavior = this._jumpSmooth && !this._reducedMotion() ? 'smooth' : 'auto';
-    strip.scrollTo({ left: this._columnScrollLeft(strip, idx), behavior });
+    this._axis().scrollTo(strip, this._columnScroll(strip, idx), behavior);
     if (this._isCalendar()) strip.scrollTop = this._startHour() * HOUR_H;
     this._scrollToToday = false;
     this._jumpSmooth = false;
@@ -551,7 +617,11 @@ export class CalendarWeekViewCard extends LitElement {
     }
     return html`
       <ha-card
-        class=${classMap({ nobackground: !!cfg.noCardBackground, compact: !!cfg.compact })}
+        class=${classMap({
+          nobackground: !!cfg.noCardBackground,
+          compact: !!cfg.compact,
+          nohighlight: cfg.highlightToday === false,
+        })}
         style=${styleParts.join(';')}
       >
         <div class="cwv">
@@ -559,15 +629,9 @@ export class CalendarWeekViewCard extends LitElement {
           ${this._weatherError ? html`<ha-alert alert-type="warning">${this._weatherError}</ha-alert>` : ''}
           ${cfg.title ? html`<div class="card-title">${cfg.title}</div>` : ''}
           <div class="topbar">${this._renderStatus()} ${this._renderLegend()}</div>
-          <div class="carousel">
-            ${
-              cfg.showNavigation === false
-                ? ''
-                : html`<button class="car-arrow left" aria-label="Previous days" @click=${() => this._carousel(-1)}>
-                    <ha-icon icon="mdi:chevron-left"></ha-icon>
-                  </button>`
-            }
-            <div class=${classMap({ week: true, cal: calendar })} @scroll=${this._onScroll}>
+          <div class=${classMap({ carousel: true, nonav: !this._navEnabled(), vert: this._isVertical() })}>
+            ${this._renderArrow(-1)}
+            <div class=${classMap({ week: true, cal: calendar, vert: this._isVertical() })} @scroll=${this._onScroll}>
               ${calendar ? this._renderGutter() : ''}
               ${repeat(
                 this._columns,
@@ -575,13 +639,7 @@ export class CalendarWeekViewCard extends LitElement {
                 (col) => this._renderDay(col, calendar),
               )}
             </div>
-            ${
-              cfg.showNavigation === false
-                ? ''
-                : html`<button class="car-arrow right" aria-label="Next days" @click=${() => this._carousel(1)}>
-                    <ha-icon icon="mdi:chevron-right"></ha-icon>
-                  </button>`
-            }
+            ${this._renderArrow(1)}
           </div>
         </div>
         ${
@@ -604,16 +662,46 @@ export class CalendarWeekViewCard extends LitElement {
     `;
   }
 
-  /** Top-left status cluster: live clock, date, and a row of return button + next event. */
+  /** A paging arrow, oriented to the layout axis (left/right horizontally, up/down vertically). */
+  private _renderArrow(dir: 1 | -1) {
+    if (!this._navEnabled()) return html``;
+    const vert = this._isVertical();
+    const prev = dir < 0;
+    const cls = vert ? (prev ? 'up' : 'down') : prev ? 'left' : 'right';
+    const icon = vert
+      ? prev
+        ? 'mdi:chevron-up'
+        : 'mdi:chevron-down'
+      : prev
+        ? 'mdi:chevron-left'
+        : 'mdi:chevron-right';
+    return html`<button
+      class="car-arrow ${cls}"
+      aria-label=${prev ? 'Previous days' : 'Next days'}
+      @click=${() => this._carousel(dir)}
+    >
+      <ha-icon icon=${icon}></ha-icon>
+    </button>`;
+  }
+
+  /**
+   * Top-left status cluster. The clock + date (`showClock`) and the next-event
+   * chip (`showNextEvent`) are gated independently; a return glyph keeps the
+   * header alive when both are off but today has scrolled away.
+   */
   private _renderStatus() {
     const cfg = this._config;
-    if (cfg.showClock === false) return html``;
     const now = this._now();
-    const showReturn = cfg.showNavigation !== false && !this._todayVisible;
-    const row =
-      showReturn || this._upcoming
-        ? html`<div class="statusrow">${this._renderReturn()}${this._renderUpcoming(now)}</div>`
-        : '';
+    const clock = cfg.showClock !== false;
+    const nextEvent = cfg.showNextEvent !== false;
+    const showReturn = this._navEnabled() && !this._todayVisible;
+    const hasRow = showReturn || (nextEvent && !!this._upcoming);
+    const row = hasRow
+      ? html`<div class="statusrow">${this._renderReturn()}${nextEvent ? this._renderUpcoming(now) : html``}</div>`
+      : html``;
+    if (!clock) {
+      return hasRow ? html`<div class="status status-compact">${row}</div>` : html``;
+    }
     return html`
       <div class="status">
         <div class="clock">${this._fmt(now, cfg.clockFormat ?? 'HH:mm')}</div>
@@ -628,8 +716,16 @@ export class CalendarWeekViewCard extends LitElement {
   /** Return-to-today glyph, pointing the way back; shown only when today is off-screen. */
   private _renderReturn() {
     const cfg = this._config;
-    if (cfg.showNavigation === false || this._todayVisible) return html``;
-    const icon = this._todayDir < 0 ? 'mdi:calendar-arrow-left' : 'mdi:calendar-arrow-right';
+    if (!this._navEnabled() || this._todayVisible) return html``;
+    const vert = this._isVertical();
+    const back = this._todayDir < 0;
+    const icon = vert
+      ? back
+        ? 'mdi:arrow-up'
+        : 'mdi:arrow-down'
+      : back
+        ? 'mdi:calendar-arrow-left'
+        : 'mdi:calendar-arrow-right';
     const label = `Back to ${cfg.texts?.today ?? 'today'}`;
     return html`
       <button class="return-btn" aria-label=${label} title=${label} @click=${() => this._goToday()}>
@@ -731,10 +827,7 @@ export class CalendarWeekViewCard extends LitElement {
   private _renderGrid(col: DayColumn) {
     const placed = layoutDayEvents(col.timedEvents);
     return html`
-      <div class="grid">
-        ${placed.map((p) => this._renderTimed(p))}
-        ${col.isToday ? this._renderNow() : ''}
-      </div>
+      <div class="grid">${placed.map((p) => this._renderTimed(p))} ${col.isToday ? this._renderNow() : ''}</div>
     `;
   }
 

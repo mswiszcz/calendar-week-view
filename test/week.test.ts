@@ -4,10 +4,14 @@ import type { CalendarConfig, CalendarEventInput } from '@/types';
 import {
   buildDayColumns,
   CalendarFeature,
+  clampScroll,
   computeWeekStart,
   dayCountFor,
+  edgeIndex,
   isAllDay,
+  lastVisibleIndex,
   layoutDayEvents,
+  lockedDays,
   normalizeEvent,
   supportsFeature,
   weekDays,
@@ -45,6 +49,58 @@ describe('windowDays', () => {
     expect(days).toHaveLength(10);
     expect(days[4].toISODate()).toBe('2026-08-21'); // Fri
     expect(days[5].toISODate()).toBe('2026-08-24'); // next Mon (Sat/Sun skipped)
+  });
+});
+
+describe('lockedDays', () => {
+  const wed = DateTime.fromISO('2026-08-19'); // Wed
+  const fri = DateTime.fromISO('2026-08-21'); // Fri
+  test('count of 1 returns today only', () => {
+    const days = lockedDays(wed, 1, false);
+    expect(days.map((d) => d.toISODate())).toEqual(['2026-08-19']);
+  });
+  test('count of 3 returns today-anchored consecutive days', () => {
+    const days = lockedDays(wed, 3, false);
+    expect(days.map((d) => d.toISODate())).toEqual(['2026-08-19', '2026-08-20', '2026-08-21']);
+  });
+  test('with hideWeekend skips Saturday and Sunday', () => {
+    const days = lockedDays(fri, 3, true);
+    expect(days.map((d) => d.toISODate())).toEqual(['2026-08-21', '2026-08-24', '2026-08-25']);
+  });
+  test('clamps a count below 1 to a single day', () => {
+    expect(lockedDays(wed, 0, false).map((d) => d.toISODate())).toEqual(['2026-08-19']);
+  });
+});
+
+describe('edgeIndex', () => {
+  const starts = [0, 100, 200];
+  const sizes = [100, 100, 100];
+  test('returns the first child whose right edge clears the edge', () => {
+    expect(edgeIndex(starts, sizes, 0)).toBe(0);
+    expect(edgeIndex(starts, sizes, 100)).toBe(1);
+    expect(edgeIndex(starts, sizes, 150)).toBe(1);
+  });
+  test('falls back to 0 when the edge is past every child', () => {
+    expect(edgeIndex(starts, sizes, 1000)).toBe(0);
+  });
+});
+
+describe('lastVisibleIndex', () => {
+  const starts = [0, 100, 200];
+  test('returns the last child starting before the edge', () => {
+    expect(lastVisibleIndex(starts, 250)).toBe(2);
+    expect(lastVisibleIndex(starts, 150)).toBe(1);
+  });
+  test('returns 0 when nothing starts before the edge', () => {
+    expect(lastVisibleIndex(starts, 0)).toBe(0);
+  });
+});
+
+describe('clampScroll', () => {
+  test('clamps below 0 and above max', () => {
+    expect(clampScroll(-5, 100)).toBe(0);
+    expect(clampScroll(150, 100)).toBe(100);
+    expect(clampScroll(50, 100)).toBe(50);
   });
 });
 
