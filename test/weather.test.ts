@@ -1,7 +1,7 @@
 import { DateTime } from 'luxon';
 import { describe, expect, test } from 'vitest';
 import type { HourlyForecast, WeekEvent } from '@/types';
-import { buildForecastMap, forecastForEvent, weatherIcon } from '@/weather';
+import { buildForecastMap, forecastForEvent, weatherIcon, weatherLabel, weatherSamplesForEvent } from '@/weather';
 
 const now = DateTime.fromISO('2026-08-19T10:00');
 function ev(startISO: string, allDay = false): WeekEvent {
@@ -68,5 +68,67 @@ describe('weatherIcon', () => {
   });
   test('falls back for unknown', () => {
     expect(weatherIcon('nonsense')).toBe('mdi:weather-cloudy');
+  });
+});
+
+describe('weatherLabel', () => {
+  test('names known conditions', () => {
+    expect(weatherLabel('partlycloudy')).toBe('Partly cloudy');
+    expect(weatherLabel('clear-night')).toBe('Clear');
+  });
+  test('falls back for unknown', () => {
+    expect(weatherLabel('nonsense')).toBe('Weather');
+  });
+});
+
+describe('weatherSamplesForEvent', () => {
+  // Afternoon into the night, plus tomorrow midday — a horizon that ends at 21:00 today.
+  const list: HourlyForecast[] = [
+    { datetime: '2026-08-19T12:00:00', condition: 'sunny', temperature: 24 },
+    { datetime: '2026-08-19T17:00:00', condition: 'sunny', temperature: 22 },
+    { datetime: '2026-08-19T18:00:00', condition: 'partlycloudy', temperature: 20 },
+    { datetime: '2026-08-19T20:00:00', condition: 'cloudy', temperature: 18 },
+    { datetime: '2026-08-19T21:00:00', condition: 'clear-night', temperature: 15 },
+    { datetime: '2026-08-20T12:00:00', condition: 'rainy', temperature: 19 },
+  ];
+  const map = buildForecastMap(list);
+
+  function timed(startISO: string, endISO: string): WeekEvent {
+    const s = DateTime.fromISO(startISO);
+    const e = DateTime.fromISO(endISO);
+    return { ...ev(startISO), start: s, end: e, originalStart: s, originalEnd: e };
+  }
+  function allDay(startISO: string, endISO: string): WeekEvent {
+    const s = DateTime.fromISO(startISO).startOf('day');
+    const e = DateTime.fromISO(endISO).startOf('day');
+    const multiDay = e.startOf('day') > s.startOf('day').plus({ days: 1 });
+    return { ...timed(startISO, endISO), start: s, end: e, originalStart: s, originalEnd: e, allDay: true, multiDay };
+  }
+
+  test('one sample for an event up to an hour', () => {
+    const s = weatherSamplesForEvent(timed('2026-08-19T17:00', '2026-08-19T18:00'), now, map);
+    expect(s).toHaveLength(1);
+    expect(s[0]).toMatchObject({ kind: 'clock', temperature: 22 });
+  });
+  test('samples start, middle, and end of a longer event', () => {
+    const s = weatherSamplesForEvent(timed('2026-08-19T17:00', '2026-08-19T20:00'), now, map);
+    // 17:00, midpoint 18:30 → 18:00 slot, 20:00
+    expect(s.map((x) => x.temperature)).toEqual([22, 20, 18]);
+  });
+  test('drops a sample beyond the forecast horizon', () => {
+    const s = weatherSamplesForEvent(timed('2026-08-19T20:00', '2026-08-19T23:00'), now, map);
+    // 20:00 cloudy, midpoint 21:30 → 21:00 clear-night, 23:00 has no slot → dropped
+    expect(s.map((x) => x.temperature)).toEqual([18, 15]);
+  });
+  test('no samples for a past event', () => {
+    expect(weatherSamplesForEvent(timed('2026-08-19T06:00', '2026-08-19T07:00'), now, map)).toHaveLength(0);
+  });
+  test('today / tonight / tomorrow for a multi-day event', () => {
+    const s = weatherSamplesForEvent(allDay('2026-08-19', '2026-08-21'), now, map);
+    expect(s.map((x) => x.kind)).toEqual(['today', 'tonight', 'tomorrow']);
+    expect(s.map((x) => x.temperature)).toEqual([24, 15, 19]);
+  });
+  test('no samples for an all-day event beyond tomorrow', () => {
+    expect(weatherSamplesForEvent(allDay('2026-08-25', '2026-08-26'), now, map)).toHaveLength(0);
   });
 });

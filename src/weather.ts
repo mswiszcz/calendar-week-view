@@ -53,3 +53,73 @@ export function forecastForEvent(event: WeekEvent, now: DateTime, map: Map<strin
 export function weatherIcon(condition: string): string {
   return ICONS[condition] ?? 'mdi:weather-cloudy';
 }
+
+const LABELS: Record<string, string> = {
+  'clear-night': 'Clear',
+  cloudy: 'Cloudy',
+  fog: 'Fog',
+  hail: 'Hail',
+  lightning: 'Thunder',
+  'lightning-rainy': 'Thunderstorms',
+  partlycloudy: 'Partly cloudy',
+  pouring: 'Heavy rain',
+  rainy: 'Rain',
+  snowy: 'Snow',
+  'snowy-rainy': 'Sleet',
+  sunny: 'Sunny',
+  windy: 'Windy',
+  'windy-variant': 'Windy',
+  exceptional: 'Severe',
+};
+
+/** Human-readable name for a weather condition (used by the details popup). */
+export function weatherLabel(condition: string): string {
+  return LABELS[condition] ?? 'Weather';
+}
+
+export type WeatherSampleKind = 'clock' | 'today' | 'tonight' | 'tomorrow';
+
+export interface WeatherSample {
+  kind: WeatherSampleKind;
+  time: DateTime;
+  condition: string;
+  temperature: number;
+}
+
+/**
+ * Weather samples for the event-details popup, read from the hourly forecast.
+ *
+ * Timed events up to an hour resolve to a single sample at the start; longer ones
+ * sample the start, midpoint, and end. All-day and multi-day events swap to a
+ * near-term day/night outlook (today, tonight, tomorrow) while they overlap the
+ * next day. Samples whose hour is missing — already past, or beyond the forecast
+ * horizon — are dropped, so the result holds 0…3 entries.
+ */
+export function weatherSamplesForEvent(
+  event: WeekEvent,
+  now: DateTime,
+  map: Map<string, ForecastSlot>,
+): WeatherSample[] {
+  const targets: { kind: WeatherSampleKind; time: DateTime }[] = [];
+  if (event.allDay || event.multiDay) {
+    const midnight = now.startOf('day');
+    if (event.originalEnd <= now || event.originalStart.startOf('day') >= midnight.plus({ days: 2 })) return [];
+    const noon = midnight.plus({ hours: 12 });
+    targets.push({ kind: 'today', time: now > noon ? now.startOf('hour') : noon });
+    targets.push({ kind: 'tonight', time: midnight.plus({ hours: 21 }) });
+    targets.push({ kind: 'tomorrow', time: midnight.plus({ days: 1, hours: 12 }) });
+  } else {
+    const { originalStart: start, originalEnd: end } = event;
+    targets.push({ kind: 'clock', time: start });
+    if (end.diff(start).as('minutes') > 60) {
+      targets.push({ kind: 'clock', time: start.plus({ minutes: end.diff(start).as('minutes') / 2 }) });
+      targets.push({ kind: 'clock', time: end });
+    }
+  }
+  const samples: WeatherSample[] = [];
+  for (const { kind, time } of targets) {
+    const slot = map.get(hourKey(time));
+    if (slot) samples.push({ kind, time, condition: slot.condition, temperature: slot.temperature });
+  }
+  return samples;
+}
