@@ -60,20 +60,14 @@ export const styles = css`
     display: flex;
     flex-direction: column;
   }
-  /* Calendar view, collapsed — a bounded viewport that fills its container and
-     scrolls the hour grid internally. Absolutely filling the (relative, min-height)
-     ha-card keeps an auto-height dashboard column from stretching the card to the
-     full 24h grid: with no in-flow child the card holds at --cwv-min-h and the grid
-     scrolls, while a height-constrained container still sizes .cwv to fit. */
-  ha-card.calendar:not(.calexpanded) > .cwv {
+  /* Calendar view — a bounded viewport that fills its container and scrolls the hour
+     grid internally. Absolutely filling the (relative, min-height) ha-card keeps an
+     auto-height dashboard column from stretching the card to the full 24h grid: with
+     no in-flow child the card holds at --cwv-min-h and the grid scrolls, while a
+     height-constrained container still sizes .cwv to fit. */
+  ha-card.calendar > .cwv {
     position: absolute;
     inset: 0;
-  }
-  /* Calendar view, expanded — the whole day is shown at once: the card grows to fit
-     its content and the dashboard scrolls, so no hour or event is clipped. */
-  ha-card.calexpanded {
-    height: auto;
-    min-height: 0;
   }
 
   ha-alert {
