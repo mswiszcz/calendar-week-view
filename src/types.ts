@@ -19,6 +19,16 @@ export interface WeatherConfig {
   roundTemperature?: boolean;
 }
 
+/** Optional overrides for UI element colors; each maps to a base CSS token. */
+export interface UiColors {
+  accent?: string;
+  today?: string;
+  dayBackground?: string;
+  cardBackground?: string;
+  text?: string;
+  secondaryText?: string;
+}
+
 export interface CardConfig {
   type: string;
   title?: string;
@@ -33,6 +43,7 @@ export interface CardConfig {
   addEvents?: boolean;
   addEventCalendars?: string[];
   weather?: WeatherConfig;
+  colors?: UiColors;
   combineSimilarEvents?: boolean;
   updateInterval?: number;
   compact?: boolean;
@@ -48,6 +59,9 @@ export interface CalendarEventInput {
   summary?: string;
   description?: string;
   location?: string;
+  uid?: string;
+  recurrence_id?: string;
+  rrule?: string;
   start: { dateTime?: string; date?: string };
   end: { dateTime?: string; date?: string };
 }
@@ -57,6 +71,10 @@ export interface WeekEvent {
   summary: string;
   description: string | null;
   location: string | null;
+  uid: string | null;
+  recurrenceId: string | null;
+  rrule: string | null;
+  recurring: boolean;
   start: DateTime;
   end: DateTime;
   originalStart: DateTime;
@@ -69,6 +87,9 @@ export interface WeekEvent {
   color: string;
   calendarName: string;
 }
+
+/** Scope for mutating a recurring event, matching HA's native calendar dialog. */
+export type RecurrenceScope = 'this' | 'future' | 'all';
 
 export interface DayColumn {
   date: DateTime;

@@ -43,8 +43,10 @@ This card is not in the default HACS store yet, so add it as a **custom reposito
 
 ## Usage
 
-Add the card via the dashboard **visual card picker** ("Calendar Week View"), or
-in YAML:
+Add the card via the dashboard **visual card picker** ("Calendar Week View").
+The card ships a full **visual editor** — add, configure, and remove calendars,
+pick a weather entity, choose UI colors, and set every option without touching
+YAML. You can still configure it in YAML if you prefer:
 
 ```yaml
 type: custom:calendar-week-view
@@ -73,13 +75,14 @@ calendars:
 | `weekStartsOn` | `monday` \| `sunday` | `monday` | First day of the week. |
 | `visibleDays` | number | `3` | Columns visible at once; the strip scrolls to reveal the rest. |
 | `hideWeekend` | boolean | `false` | Show Monday–Friday only (5 columns). |
-| `height` | string | `416px` | Day-column height. The featured today column is 40px taller. |
+| `height` | string | `520px` | **Minimum** height. The card fills its container (full height in a panel view) and never shrinks below this. |
 | `showNavigation` | boolean | `true` | Show the prev / next / this-week controls. |
 | `showLegend` | boolean | `true` | Show the calendar legend chips. |
 | `legendToggle` | boolean | `true` | Click a legend chip to hide/show that calendar's events. |
 | `addEvents` | boolean | `false` | Show the floating quick-add button (needs ≥1 writable calendar). |
 | `addEventCalendars` | list of entity ids | all writable | Restrict the add dialog's calendar picker. |
 | `weather` | object | — | Optional hourly weather. See [Weather options](#weather-options). |
+| `colors` | object | — | Override UI colors. See [Color options](#color-options). |
 | `combineSimilarEvents` | boolean | `false` | Merge identical events that appear in more than one calendar. |
 | `updateInterval` | number | `60` | Seconds between background re-fetches. |
 | `compact` | boolean | `false` | Tighter padding and shorter columns. |
@@ -113,6 +116,38 @@ Weather is shown per **timed** event, at the event's start hour, using native
 > few days for some integrations). Events beyond that horizon — as well as
 > all-day and past events — show **no** weather rather than a blank icon. This is
 > expected, not a bug.
+
+### Color options
+
+All optional; each overrides one UI element and falls back to the active Home
+Assistant theme when unset. Accepts any CSS color (hex, named, or `var(--token)`).
+
+```yaml
+colors:
+  accent: '#0aa2e6'        # today accent, quick-add button, this-week button
+  today: '#e8f4fd'         # today column background
+  dayBackground: '#f5f5f7' # day column + legend chip background
+  cardBackground: '#ffffff'
+  text: '#1a1c1e'
+  secondaryText: '#5f6368'
+```
+
+| Key | Overrides |
+|---|---|
+| `accent` | Today accent, quick-add FAB, this-week button, nav hover. |
+| `today` | Today column background tint. |
+| `dayBackground` | Day column and legend chip background. |
+| `cardBackground` | Card and pill background base. |
+| `text` | Primary text. |
+| `secondaryText` | Day names, event times, subtitles. |
+
+## Managing events
+
+Click any event to open its overview. When the event's calendar supports it
+(`local_calendar`, CalDAV, most Google setups), the overview offers **Edit** and
+**Delete**. Recurring events ask whether the change applies to **this event**,
+**this and following events**, or **all events**, matching Home Assistant's own
+calendar. Use the floating **+** button (enable `addEvents`) to create events.
 
 ### Reserved (not yet implemented)
 

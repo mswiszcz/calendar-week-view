@@ -25,11 +25,20 @@ function hourKey(dt: DateTime): string {
   return dt.startOf('hour').toISO({ suppressSeconds: true, suppressMilliseconds: true }) ?? '';
 }
 
-/** Map each hourly forecast to its hour key. */
-export function buildForecastMap(list: HourlyForecast[]): Map<string, ForecastSlot> {
+/**
+ * Map each hourly forecast to its hour key, expressed in `zone`.
+ *
+ * Events are normalized in the HA timezone, so the forecast must be keyed in the
+ * same zone — otherwise a browser whose timezone differs from the HA server keys
+ * the same instant differently and no forecast ever matches an event.
+ */
+export function buildForecastMap(list: HourlyForecast[], zone = 'local'): Map<string, ForecastSlot> {
   const map = new Map<string, ForecastSlot>();
   for (const f of list) {
-    map.set(hourKey(DateTime.fromISO(f.datetime)), { condition: f.condition, temperature: f.temperature });
+    map.set(hourKey(DateTime.fromISO(f.datetime, { zone })), {
+      condition: f.condition,
+      temperature: f.temperature,
+    });
   }
   return map;
 }
