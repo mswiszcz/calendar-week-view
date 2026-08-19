@@ -941,10 +941,14 @@ export class CalendarWeekViewCard extends LitElement {
       return html`
         <div class=${classMap({ day: true, cal: true, today: col.isToday, past: col.isPast })}>
           <div class="cal-head">
-            <div class="cal-dayhead">
-              ${showSup ? html`<span class="cd-name">${head.sup}</span>` : ''}
-              ${showText ? html`<span class="cd-num">${head.num}</span>` : ''}
-            </div>
+            ${
+              showSup || showText
+                ? html`<div class="cal-dayhead">
+                    ${showSup ? html`<span class="cd-name">${head.sup}</span>` : ''}
+                    ${showText ? html`<span class="cd-num">${head.num}</span>` : ''}
+                  </div>`
+                : ''
+            }
             ${allday}
           </div>
           ${this._renderGrid(col, stack)}
@@ -953,12 +957,16 @@ export class CalendarWeekViewCard extends LitElement {
     }
     return html`
       <div class=${classMap({ day: true, today: col.isToday, past: col.isPast })}>
-        <div class="day-head">
-          <div class="dstack">
-            ${showSup ? html`<span class="dmeta">${head.sup}</span>` : ''}
-            ${showText ? html`<span class="dnum">${head.num}</span>` : ''}
-          </div>
-        </div>
+        ${
+          showSup || showText
+            ? html`<div class="day-head">
+                <div class="dstack">
+                  ${showSup ? html`<span class="dmeta">${head.sup}</span>` : ''}
+                  ${showText ? html`<span class="dnum">${head.num}</span>` : ''}
+                </div>
+              </div>`
+            : ''
+        }
         ${allday}
         <div class="events">
           ${

@@ -52,8 +52,6 @@ YAML. You can still configure it in YAML if you prefer:
 
 ```yaml
 type: custom:calendar-week-view
-title: This week
-weekStartsOn: monday
 visibleDays: 3
 addEvents: true
 weather:
@@ -72,9 +70,7 @@ calendars:
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `type` | string | — | `custom:calendar-week-view` (required). |
-| `title` | string | — | Optional heading shown above the week strip. |
 | `calendars` | list | — | Required, at least one. See [Calendar options](#calendar-options). |
-| `weekStartsOn` | `monday` \| `sunday` | `monday` | First day of the week. |
 | `viewMode` | `agenda` \| `calendar` | `agenda` | Agenda lists events per day; calendar spans them over an hour grid. |
 | `orientation` | `horizontal` \| `vertical` | `horizontal` | Agenda layout axis. Horizontal is the scrolling day strip; vertical stacks days full-width, each at its full height, and grows the card to fit (the dashboard scrolls, not the card). Ignored in calendar view. |
 | `startHour` | number | `8` | Calendar view: the hour (0–23) the grid initially scrolls to. |

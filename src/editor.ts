@@ -14,11 +14,6 @@ type ButtonKind = 'headerButtons' | 'floatingButtons';
 
 /** Fields shared by both view modes. */
 const GENERAL_SCHEMA = [
-  { name: 'title', selector: { text: {} } },
-  {
-    name: 'weekStartsOn',
-    selector: { select: { options: ['monday', 'sunday'], mode: 'dropdown' } },
-  },
   {
     name: 'viewMode',
     selector: { select: { options: ['agenda', 'calendar'], mode: 'dropdown' } },
@@ -79,8 +74,6 @@ const LABELS: Record<string, string> = {
   icon: 'Icon',
   name: 'Label',
   tap_action: 'Tap action',
-  title: 'Title',
-  weekStartsOn: 'Week starts on',
   viewMode: 'View mode',
   orientation: 'Layout orientation',
   startHour: 'Start hour',
@@ -184,27 +177,10 @@ export class CalendarWeekViewEditor extends LitElement {
       flex-direction: column;
       gap: 8px;
     }
-    .cal {
-      border: 1px solid var(--divider-color);
-      border-radius: 10px;
-      padding: 12px;
-      margin-bottom: 10px;
+    .grp-actions {
       display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .cal-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .cal-title {
-      font-weight: 600;
-      font-size: 14px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      justify-content: flex-end;
+      margin-bottom: -4px;
     }
     .toggles {
       display: flex;
@@ -268,12 +244,6 @@ export class CalendarWeekViewEditor extends LitElement {
       font-size: 12.5px;
       color: var(--secondary-text-color);
     }
-    .subhead {
-      margin-top: 6px;
-      font-weight: 600;
-      font-size: 13px;
-      color: var(--primary-text-color);
-    }
   `;
 
   @property({ attribute: false }) hass!: HomeAssistant;
@@ -319,12 +289,18 @@ export class CalendarWeekViewEditor extends LitElement {
 
       <ha-expansion-panel outlined .header=${'Buttons'}>
         <div class="section">
-          <div class="subhead">Header buttons</div>
-          <div class="hint">Custom buttons at the top-right of the header. Each runs a Home Assistant action.</div>
-          ${this._renderButtonList('headerButtons')}
-          <div class="subhead">Floating buttons</div>
-          <div class="hint">Custom buttons beside the floating + at the bottom-right.</div>
-          ${this._renderButtonList('floatingButtons')}
+          <ha-expansion-panel outlined .header=${'Header buttons'}>
+            <div class="section">
+              <div class="hint">Custom buttons at the top-right of the header. Each runs a Home Assistant action.</div>
+              ${this._renderButtonList('headerButtons')}
+            </div>
+          </ha-expansion-panel>
+          <ha-expansion-panel outlined .header=${'Floating buttons'}>
+            <div class="section">
+              <div class="hint">Custom buttons beside the floating + at the bottom-right.</div>
+              ${this._renderButtonList('floatingButtons')}
+            </div>
+          </ha-expansion-panel>
         </div>
       </ha-expansion-panel>
 
@@ -352,7 +328,7 @@ export class CalendarWeekViewEditor extends LitElement {
               ${this._form(data, HEADER_SCHEMA)}
             </div>
           </ha-expansion-panel>
-          <ha-expansion-panel outlined .header=${'Today'}>
+          <ha-expansion-panel outlined .header=${'Today highlight'}>
             <div class="section">
               <div class="hint">Turn today's accent background, border, and text on or off.</div>
               ${this._form(data, TODAY_SCHEMA)}
@@ -388,46 +364,47 @@ export class CalendarWeekViewEditor extends LitElement {
 
   private _renderCalendar(cal: CalendarConfig, i: number) {
     return html`
-      <div class="cal">
-        <div class="cal-head">
-          <span class="cal-title">${cal.name || cal.entity || 'New calendar'}</span>
-          <button class="icon-btn" title="Remove calendar" @click=${() => this._removeCalendar(i)}>
-            <ha-icon icon="mdi:trash-can-outline"></ha-icon>
-          </button>
+      <ha-expansion-panel outlined .header=${cal.name || cal.entity || 'New calendar'}>
+        <div class="section">
+          <div class="grp-actions">
+            <button class="icon-btn" title="Remove calendar" @click=${() => this._removeCalendar(i)}>
+              <ha-icon icon="mdi:trash-can-outline"></ha-icon>
+            </button>
+          </div>
+          <ha-entity-picker
+            .hass=${this.hass}
+            .value=${cal.entity}
+            .includeDomains=${['calendar']}
+            allow-custom-entity
+            @value-changed=${(e: CustomEvent) => this._calChanged(i, { entity: e.detail.value })}
+          ></ha-entity-picker>
+          <ha-textfield
+            label="Name"
+            .value=${cal.name ?? ''}
+            @input=${(e: Event) => this._calChanged(i, { name: (e.target as HTMLInputElement).value || undefined })}
+          ></ha-textfield>
+          ${this._colorInputs(cal.color ?? '', (v) => this._calChanged(i, { color: v || undefined }))}
+          <ha-textfield
+            label="Filter (regex, hides matching events)"
+            .value=${cal.filter ?? ''}
+            @input=${(e: Event) => this._calChanged(i, { filter: (e.target as HTMLInputElement).value || undefined })}
+          ></ha-textfield>
+          <div class="toggles">
+            <ha-formfield label="Hide in legend">
+              <ha-switch
+                .checked=${!!cal.hideInLegend}
+                @change=${(e: Event) => this._calChanged(i, { hideInLegend: (e.target as HTMLInputElement).checked || undefined })}
+              ></ha-switch>
+            </ha-formfield>
+            <ha-formfield label="Initially hidden">
+              <ha-switch
+                .checked=${!!cal.initiallyHidden}
+                @change=${(e: Event) => this._calChanged(i, { initiallyHidden: (e.target as HTMLInputElement).checked || undefined })}
+              ></ha-switch>
+            </ha-formfield>
+          </div>
         </div>
-        <ha-entity-picker
-          .hass=${this.hass}
-          .value=${cal.entity}
-          .includeDomains=${['calendar']}
-          allow-custom-entity
-          @value-changed=${(e: CustomEvent) => this._calChanged(i, { entity: e.detail.value })}
-        ></ha-entity-picker>
-        <ha-textfield
-          label="Name"
-          .value=${cal.name ?? ''}
-          @input=${(e: Event) => this._calChanged(i, { name: (e.target as HTMLInputElement).value || undefined })}
-        ></ha-textfield>
-        ${this._colorInputs(cal.color ?? '', (v) => this._calChanged(i, { color: v || undefined }))}
-        <ha-textfield
-          label="Filter (regex, hides matching events)"
-          .value=${cal.filter ?? ''}
-          @input=${(e: Event) => this._calChanged(i, { filter: (e.target as HTMLInputElement).value || undefined })}
-        ></ha-textfield>
-        <div class="toggles">
-          <ha-formfield label="Hide in legend">
-            <ha-switch
-              .checked=${!!cal.hideInLegend}
-              @change=${(e: Event) => this._calChanged(i, { hideInLegend: (e.target as HTMLInputElement).checked || undefined })}
-            ></ha-switch>
-          </ha-formfield>
-          <ha-formfield label="Initially hidden">
-            <ha-switch
-              .checked=${!!cal.initiallyHidden}
-              @change=${(e: Event) => this._calChanged(i, { initiallyHidden: (e.target as HTMLInputElement).checked || undefined })}
-            ></ha-switch>
-          </ha-formfield>
-        </div>
-      </div>
+      </ha-expansion-panel>
     `;
   }
 
@@ -443,33 +420,34 @@ export class CalendarWeekViewEditor extends LitElement {
 
   private _renderButton(kind: ButtonKind, btn: ButtonConfig, i: number) {
     return html`
-      <div class="cal">
-        <div class="cal-head">
-          <span class="cal-title">${btn.name || btn.icon || 'New button'}</span>
-          <button class="icon-btn" title="Remove button" @click=${() => this._removeButton(kind, i)}>
-            <ha-icon icon="mdi:trash-can-outline"></ha-icon>
-          </button>
+      <ha-expansion-panel outlined .header=${btn.name || btn.icon || 'New button'}>
+        <div class="section">
+          <div class="grp-actions">
+            <button class="icon-btn" title="Remove button" @click=${() => this._removeButton(kind, i)}>
+              <ha-icon icon="mdi:trash-can-outline"></ha-icon>
+            </button>
+          </div>
+          <ha-form
+            .hass=${this.hass}
+            .data=${btn}
+            .schema=${BUTTON_SCHEMA}
+            .computeLabel=${(s: { name: string }) => LABELS[s.name] ?? s.name}
+            @value-changed=${(e: CustomEvent) => this._buttonChanged(kind, i, e.detail.value)}
+          ></ha-form>
+          <div class="color-row">
+            <label>Color</label>
+            ${this._colorInputs(btn.color ?? '', (v) => this._buttonChanged(kind, i, { color: v || undefined }))}
+          </div>
+          <div class="color-row">
+            <label>Background</label>
+            ${this._colorInputs(
+              btn.background ?? '',
+              (v) => this._buttonChanged(kind, i, { background: v || undefined }),
+              'Background',
+            )}
+          </div>
         </div>
-        <ha-form
-          .hass=${this.hass}
-          .data=${btn}
-          .schema=${BUTTON_SCHEMA}
-          .computeLabel=${(s: { name: string }) => LABELS[s.name] ?? s.name}
-          @value-changed=${(e: CustomEvent) => this._buttonChanged(kind, i, e.detail.value)}
-        ></ha-form>
-        <div class="color-row">
-          <label>Color</label>
-          ${this._colorInputs(btn.color ?? '', (v) => this._buttonChanged(kind, i, { color: v || undefined }))}
-        </div>
-        <div class="color-row">
-          <label>Background</label>
-          ${this._colorInputs(
-            btn.background ?? '',
-            (v) => this._buttonChanged(kind, i, { background: v || undefined }),
-            'Background',
-          )}
-        </div>
-      </div>
+      </ha-expansion-panel>
     `;
   }
 
