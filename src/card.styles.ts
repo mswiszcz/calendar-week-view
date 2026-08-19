@@ -413,14 +413,14 @@ export const styles = css`
     padding: 0 16px 12px;
   }
   /* compact vertical agenda — halve the header gap and drop the carousel inset so
-     the day list runs edge to edge, squaring today's corners at the card edges */
+     the day list runs edge to edge, squaring every day tile at the card edges */
   ha-card.compact.vagenda .topbar {
     margin-bottom: 7px;
   }
   ha-card.compact.vagenda .carousel {
     padding: 0;
   }
-  ha-card.compact.vagenda .day.today {
+  ha-card.compact.vagenda .day {
     border-radius: 0;
   }
   .car-arrow {
