@@ -48,6 +48,8 @@ export interface CardConfig {
   lockToday?: boolean;
   height?: string;
   highlightToday?: boolean;
+  todayBorder?: boolean;
+  todayText?: boolean;
   showNavigation?: boolean;
   showLegend?: boolean;
   legendToggle?: boolean;

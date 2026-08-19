@@ -434,6 +434,22 @@ export const styles = css`
   ha-card.nohighlight .day.cal.today .grid {
     background-color: transparent;
   }
+  /* todayBorder off — drop today's accent outline, keeping its geometry */
+  ha-card.notodayborder .day.today {
+    border-color: transparent;
+  }
+  /* todayText off — today's date reads like any other day (no accent color or size bump) */
+  ha-card.notodaytext .day.today .dmeta,
+  ha-card.notodaytext .day.cal.today .cd-name {
+    color: var(--secondary-text-color);
+  }
+  ha-card.notodaytext .day.today .dnum,
+  ha-card.notodaytext .day.cal.today .cd-num {
+    color: var(--primary-text-color);
+  }
+  ha-card.notodaytext .day.today .dnum {
+    font-size: 26px;
+  }
 
   .day-head {
     display: flex;

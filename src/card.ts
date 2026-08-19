@@ -655,6 +655,8 @@ export class CalendarWeekViewCard extends LitElement {
           nobackground: !!cfg.noCardBackground,
           compact: !!cfg.compact,
           nohighlight: cfg.highlightToday === false,
+          notodayborder: cfg.todayBorder === false,
+          notodaytext: cfg.todayText === false,
         })}
         style=${styleParts.join(';')}
       >

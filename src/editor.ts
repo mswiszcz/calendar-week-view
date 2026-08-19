@@ -17,7 +17,6 @@ const GENERAL_SCHEMA = [
   { name: 'visibleDays', selector: { number: { min: 1, max: 7, mode: 'box' } } },
   { name: 'hideWeekend', selector: { boolean: {} } },
   { name: 'lockToday', selector: { boolean: {} } },
-  { name: 'highlightToday', selector: { boolean: {} } },
   { name: 'showNavigation', selector: { boolean: {} } },
   { name: 'showLegend', selector: { boolean: {} } },
   { name: 'legendToggle', selector: { boolean: {} } },
@@ -37,6 +36,13 @@ const AGENDA_SCHEMA = [
 
 /** Fields that only affect calendar view. */
 const CALENDAR_SCHEMA = [{ name: 'startHour', selector: { number: { min: 0, max: 23, mode: 'box' } } }];
+
+/** Independent toggles for today's accent treatment. */
+const TODAY_SCHEMA = [
+  { name: 'highlightToday', selector: { boolean: {} } },
+  { name: 'todayBorder', selector: { boolean: {} } },
+  { name: 'todayText', selector: { boolean: {} } },
+];
 
 const ADVANCED_SCHEMA = [
   { name: 'compact', selector: { boolean: {} } },
@@ -62,7 +68,9 @@ const LABELS: Record<string, string> = {
   height: 'Minimum height',
   hideWeekend: 'Hide weekend',
   lockToday: 'Lock to today (no navigation)',
-  highlightToday: 'Highlight today background',
+  highlightToday: 'Background',
+  todayBorder: 'Border',
+  todayText: 'Text',
   showNavigation: 'Show navigation',
   showLegend: 'Show legend',
   legendToggle: 'Legend toggles calendars',
@@ -105,6 +113,8 @@ const DEFAULTS: Partial<CardConfig> = {
   hideWeekend: false,
   lockToday: false,
   highlightToday: true,
+  todayBorder: true,
+  todayText: true,
   showNavigation: true,
   showLegend: true,
   legendToggle: true,
@@ -223,6 +233,12 @@ export class CalendarWeekViewEditor extends LitElement {
       font-size: 12.5px;
       color: var(--secondary-text-color);
     }
+    .subhead {
+      margin-top: 6px;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--primary-text-color);
+    }
   `;
 
   @property({ attribute: false }) hass!: HomeAssistant;
@@ -274,7 +290,11 @@ export class CalendarWeekViewEditor extends LitElement {
               @change=${this._toggleCardBackground}
             ></ha-switch>
           </ha-formfield>
-          <div class="hint">Leave colors blank to follow the Home Assistant theme.</div>
+          <div class="subhead">Today</div>
+          <div class="hint">Turn today's accent background, border, and text on or off.</div>
+          ${this._form(data, TODAY_SCHEMA)}
+          <div class="subhead">Colors</div>
+          <div class="hint">Leave a color blank to follow the Home Assistant theme.</div>
           ${COLOR_FIELDS.map((f) => this._renderColorRow(f.key, f.label))}
         </div>
       </ha-expansion-panel>
