@@ -37,7 +37,14 @@ import {
   windowDays,
 } from '@/week';
 import { renderTemplate } from '@/format';
-import { buildForecastMap, forecastForEvent, weatherIcon } from '@/weather';
+import {
+  buildForecastMap,
+  forecastForEvent,
+  weatherIcon,
+  weatherLabel,
+  weatherSamplesForEvent,
+  type WeatherSample,
+} from '@/weather';
 import { styles } from '@/card.styles';
 
 /** Maps `CardConfig.colors` keys to the CSS token each overrides on the card element. */
@@ -1164,13 +1171,56 @@ export class CalendarWeekViewCard extends LitElement {
               </div>
             </div>
             ${e.location ? this._renderLocationRow(e.location) : ''}
-            ${e.description ? html`<div class="gate-desc">${e.description}</div>` : ''}
+            ${e.description ? html`<div class="gate-desc">${e.description}</div>` : ''} ${this._renderWeatherStrip(e)}
             ${this._deleteError ? html`<ha-alert alert-type="error">${this._deleteError}</ha-alert>` : ''}
           </div>
           ${this._confirmingDelete ? this._renderDeleteConfirm(e) : this._renderDetailActions(e, canEdit, canDelete)}
         </div>
       </ha-dialog>
     `;
+  }
+
+  /**
+   * The weather strip: the forecast across the event, drawn from the hourly feed.
+   * A short event shows one line; a longer one shows start / middle / end; an
+   * all-day or multi-day event shows a today / tonight / tomorrow outlook. Renders
+   * nothing when weather is off or no sample falls within the forecast horizon.
+   */
+  private _renderWeatherStrip(e: WeekEvent) {
+    const cfg = this._config;
+    if (!cfg.weather) return '';
+    const samples = weatherSamplesForEvent(e, this._now(), this._forecast);
+    if (samples.length === 0) return '';
+    const round = cfg.weather.roundTemperature ?? true;
+    const showTemp = cfg.weather.showTemperature !== false;
+    const dayPart: Record<string, string> = { today: 'Today', tonight: 'Tonight', tomorrow: 'Tomorrow' };
+    const labelOf = (s: WeatherSample) =>
+      s.kind === 'clock' ? this._fmt(s.time, cfg.timeFormat ?? 'HH:mm') : dayPart[s.kind];
+    const temp = (t: number) => (round ? Math.round(t) : t);
+    const head =
+      e.allDay || e.multiDay ? 'Weather outlook' : samples.length === 1 ? 'Weather at start' : 'Weather during event';
+    const body =
+      samples.length === 1
+        ? html`<div class="wx-one">
+            <ha-icon icon=${weatherIcon(samples[0].condition)}></ha-icon>
+            <div class="wx-one-t">
+              <b>${weatherLabel(samples[0].condition)}${showTemp ? ` · ${temp(samples[0].temperature)}°` : ''}</b>
+            </div>
+            <span class="wx-one-hr">${labelOf(samples[0])}</span>
+          </div>`
+        : html`<div class="wx-cells">
+            ${samples.map(
+              (s, i) => html`<div class=${classMap({ 'wx-cell': true, head: i === 0 })}>
+                <span class="wx-hr">${labelOf(s)}</span>
+                <ha-icon icon=${weatherIcon(s.condition)}></ha-icon>
+                ${showTemp ? html`<span class="wx-tmp">${temp(s.temperature)}°</span>` : ''}
+              </div>`,
+            )}
+          </div>`;
+    return html`<div class="wx-strip">
+      <div class="wx-strip-h"><ha-icon icon=${weatherIcon(samples[0].condition)}></ha-icon>${head}</div>
+      ${body}
+    </div>`;
   }
 
   /** Location row with a link that opens the place in the viewer's maps app. */

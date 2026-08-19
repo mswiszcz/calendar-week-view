@@ -1146,8 +1146,105 @@ export const styles = css`
     color: var(--primary-text-color);
     white-space: pre-line;
     padding-top: 14px;
-    margin-top: 8px;
+    margin: 5px;
     border-top: 1px solid var(--divider-color);
+  }
+
+  /* weather strip — the forecast across the event; glyphs stay monochrome like
+     the grid's, and the leading tile (event start / today) takes the accent */
+  .wx-strip {
+    margin: 10px 5px 6px;
+    padding-top: 13px;
+    border-top: 1px solid var(--divider-color);
+  }
+  .wx-strip-h {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--secondary-text-color);
+  }
+  .wx-strip-h ha-icon {
+    --mdc-icon-size: 15px;
+  }
+  .wx-cells {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .wx-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 11px 6px 10px;
+    border-radius: 13px;
+    background: var(--neutral-tile);
+  }
+  .wx-cell.head {
+    background: color-mix(in srgb, var(--c, var(--primary-color)) 15%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c, var(--primary-color)) 42%, transparent);
+  }
+  .wx-cell ha-icon {
+    --mdc-icon-size: 26px;
+    color: var(--primary-text-color);
+    opacity: 0.9;
+  }
+  .wx-hr {
+    font-size: 11.5px;
+    color: var(--secondary-text-color);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+  .wx-cell.head .wx-hr {
+    color: color-mix(in srgb, var(--c, var(--primary-color)) 60%, var(--primary-text-color));
+    font-weight: 600;
+  }
+  .wx-tmp {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--primary-text-color);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .wx-one {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 12px 14px;
+    border-radius: 13px;
+    background: var(--neutral-tile);
+  }
+  .wx-one > ha-icon {
+    --mdc-icon-size: 30px;
+    color: var(--primary-text-color);
+    opacity: 0.9;
+    flex: none;
+  }
+  .wx-one-t {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .wx-one-t b {
+    font-size: 14.5px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .wx-one-hr {
+    margin-left: auto;
+    flex: none;
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: color-mix(in srgb, var(--c, var(--primary-color)) 60%, var(--primary-text-color));
+    background: color-mix(in srgb, var(--c, var(--primary-color)) 13%, transparent);
+    padding: 3px 10px;
+    border-radius: 999px;
   }
 
   .gate-acts,

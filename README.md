@@ -127,13 +127,20 @@ calendars:
 | `showTemperature` | boolean | `true` | Show the temperature next to the icon. |
 | `roundTemperature` | boolean | `true` | Round the temperature to a whole number. |
 
-Weather is shown per **timed** event, at the event's start hour, using native
-`mdi:weather-*` icons (no bundled image assets).
+On the grid, weather is shown per **timed** event, at the event's start hour,
+using native `mdi:weather-*` icons (no bundled image assets).
+
+Opening an event adds a **weather strip** to its details popup, drawn from the
+same hourly forecast:
+
+- **Up to an hour** — one line, at the start.
+- **Longer** — three tiles sampling the **start, middle, and end**.
+- **All-day / multi-day** — a **today · tonight · tomorrow** outlook.
 
 > **Weather horizon.** Hourly forecasts typically extend only ~24–48 hours (a
-> few days for some integrations). Events beyond that horizon — as well as
-> all-day and past events — show **no** weather rather than a blank icon. This is
-> expected, not a bug.
+> few days for some integrations). Grid glyphs show for timed events only; the
+> popup strip omits any tile whose hour falls beyond the horizon (or in the
+> past), and shows nothing when none remain. This is expected, not a bug.
 
 ### Color options
 
