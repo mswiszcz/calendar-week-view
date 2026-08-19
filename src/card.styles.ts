@@ -45,6 +45,13 @@ export const styles = css`
   ha-card.compact {
     --cwv-min-h: 420px;
   }
+  /* vertical agenda grows to its full content height instead of filling a fixed
+     box; the dashboard scrolls, nothing inside the card does. Minimum height is
+     dropped so a short list never leaves empty space below it. */
+  ha-card.vagenda {
+    height: auto;
+    min-height: 0;
+  }
   .cwv {
     flex: 1;
     min-height: 0;
@@ -394,18 +401,21 @@ export const styles = css`
     display: none;
   }
 
-  /* vertical layout — days stacked full-width; visibleDays rows fill the height
-     and the strip pages between days (the horizontal columns, rotated). Each row
-     keeps its own scrollable events list, so a busy day never pushes the rest away. */
+  /* vertical (agenda) layout — days stacked full-width, each at its natural
+     content height with no inner scroll, so the whole list grows and the card
+     grows with it (see ha-card.vagenda). visibleDays sets how many days, from
+     today, the list shows. */
   .week.vert {
     flex-direction: column;
-    overflow-x: hidden;
-    overflow-y: auto;
-    scroll-snap-type: y proximity;
+    overflow: visible;
   }
   .week.vert .day {
-    flex: 0 0 calc((100% - (var(--cwv-visible, 3) - 1) * 10px) / var(--cwv-visible, 3));
+    flex: 0 0 auto;
     width: 100%;
+  }
+  .week.vert .events {
+    flex: 0 0 auto;
+    overflow: visible;
   }
   .day {
     position: relative;

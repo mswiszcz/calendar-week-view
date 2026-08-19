@@ -76,9 +76,9 @@ calendars:
 | `calendars` | list | — | Required, at least one. See [Calendar options](#calendar-options). |
 | `weekStartsOn` | `monday` \| `sunday` | `monday` | First day of the week. |
 | `viewMode` | `agenda` \| `calendar` | `agenda` | Agenda lists events per day; calendar spans them over an hour grid. |
-| `orientation` | `horizontal` \| `vertical` | `horizontal` | Agenda layout axis. Horizontal is the scrolling day strip; vertical stacks days full-width and scrolls down. Ignored in calendar view. |
+| `orientation` | `horizontal` \| `vertical` | `horizontal` | Agenda layout axis. Horizontal is the scrolling day strip; vertical stacks days full-width, each at its full height, and grows the card to fit (the dashboard scrolls, not the card). Ignored in calendar view. |
 | `startHour` | number | `8` | Calendar view: the hour (0–23) the grid initially scrolls to. |
-| `visibleDays` | number | `3` | Columns visible at once; the strip scrolls to reveal the rest. In `lockToday` this is the number of days shown from today. |
+| `visibleDays` | number | `3` | Horizontal: columns visible at once; the strip scrolls to reveal the rest. Vertical and `lockToday`: the number of days shown from today. |
 | `hideWeekend` | boolean | `false` | Show Monday–Friday only (5 columns). |
 | `lockToday` | boolean | `false` | Pin the view to today: navigation off, showing `visibleDays` days from today (`1` → today only). |
 | `highlightToday` | boolean | `true` | Tint today's column background. |
@@ -160,9 +160,10 @@ colors:
 - **View mode** (`viewMode`): `agenda` lists each day's events; `calendar` spans timed
   events over an hour grid that scrolls to `startHour` and shows a live now-line.
 - **Orientation** (`orientation`, agenda only): `horizontal` is the scrolling day strip;
-  `vertical` stacks days full-width — `visibleDays` rows fill the height and the strip pages
-  down for the rest, mirroring the horizontal columns. A natural fit for tall, narrow cards.
-  Calendar view keeps its horizontal time-grid regardless.
+  `vertical` stacks `visibleDays` days from today full-width, each at the full height its
+  events need with no inner scroll, and grows the card to fit the list — the dashboard
+  scrolls, nothing inside the card does, so there is no paging. A natural fit for a
+  scrollable agenda column. Calendar view keeps its horizontal time-grid regardless.
 - **Lock to today** (`lockToday`): pins the card to today, turns navigation off, and shows
   `visibleDays` days starting at today (`1` → today only). The header, weather, and
   quick-add still work; the carousel window and paging are simply not built.
