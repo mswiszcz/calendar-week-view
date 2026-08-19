@@ -10,6 +10,14 @@ const BUTTON_SCHEMA = [
   { name: 'tap_action', selector: { ui_action: {} } },
 ];
 
+/**
+ * Single-field entity pickers, rendered through `ha-form` so it imports and
+ * registers `ha-entity-picker` on demand. A bare `<ha-entity-picker>` renders
+ * nothing until something else in the frontend loads that element first.
+ */
+const CALENDAR_ENTITY_SCHEMA = [{ name: 'entity', selector: { entity: { filter: { domain: 'calendar' } } } }];
+const WEATHER_ENTITY_SCHEMA = [{ name: 'entity', selector: { entity: { filter: { domain: 'weather' } } } }];
+
 type ButtonKind = 'headerButtons' | 'floatingButtons';
 
 /** Fields shared by both view modes. */
@@ -187,7 +195,6 @@ export class CalendarWeekViewEditor extends LitElement {
       flex-wrap: wrap;
       gap: 16px;
     }
-    ha-entity-picker,
     ha-textfield {
       width: 100%;
     }
@@ -389,13 +396,13 @@ export class CalendarWeekViewEditor extends LitElement {
               <ha-icon icon="mdi:trash-can-outline"></ha-icon>
             </button>
           </div>
-          <ha-entity-picker
+          <ha-form
             .hass=${this.hass}
-            .value=${cal.entity}
-            .includeDomains=${['calendar']}
-            allow-custom-entity
-            @value-changed=${(e: CustomEvent) => this._calChanged(i, { entity: e.detail.value })}
-          ></ha-entity-picker>
+            .data=${{ entity: cal.entity ?? '' }}
+            .schema=${CALENDAR_ENTITY_SCHEMA}
+            .computeLabel=${() => 'Calendar entity'}
+            @value-changed=${(e: CustomEvent) => this._calChanged(i, { entity: e.detail.value.entity ?? '' })}
+          ></ha-form>
           <ha-textfield
             label="Name"
             .value=${cal.name ?? ''}
@@ -478,13 +485,13 @@ export class CalendarWeekViewEditor extends LitElement {
   private _renderWeather() {
     const w = this._config.weather;
     return html`
-      <ha-entity-picker
+      <ha-form
         .hass=${this.hass}
-        .value=${w?.entity ?? ''}
-        .includeDomains=${['weather']}
-        allow-custom-entity
-        @value-changed=${(e: CustomEvent) => this._weatherEntity(e.detail.value)}
-      ></ha-entity-picker>
+        .data=${{ entity: w?.entity ?? '' }}
+        .schema=${WEATHER_ENTITY_SCHEMA}
+        .computeLabel=${() => 'Weather entity'}
+        @value-changed=${(e: CustomEvent) => this._weatherEntity(e.detail.value.entity ?? '')}
+      ></ha-form>
       ${
         w
           ? html`
