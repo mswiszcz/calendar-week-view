@@ -65,6 +65,8 @@ const WINDOW_WEEKS = 1 + BUFFER_WEEKS * 2;
 const HOUR_H = 56;
 /** Reserved height of the all-day band when any visible column has all-day events. */
 const ALLDAY_H = 46;
+/** Cap on the expanded all-day band; a taller list scrolls within it. */
+const ALLDAY_MAX_H = 250;
 /** Smallest rendered height for a timed block, so brief events stay tappable. */
 const MIN_EVENT_H = 20;
 
@@ -88,6 +90,7 @@ export class CalendarWeekViewCard extends LitElement {
   @state() private _todayVisible = true;
   @state() private _todayDir: -1 | 0 | 1 = 0;
   @state() private _expanded = false;
+  @state() private _allDayH = ALLDAY_H;
 
   private _hass?: HomeAssistant;
   private _resizeObs?: ResizeObserver;
@@ -129,14 +132,12 @@ export class CalendarWeekViewCard extends LitElement {
   }
 
   /**
-   * Sections-view sizing. Modes that grow to their content instead of scrolling
-   * internally — the vertical agenda, and the expanded calendar (whole day shown
-   * at once) — ask for an auto-height cell (`rows: 'auto'`); every other mode keeps
-   * the default fixed-height cell and scrolls within it.
+   * Sections-view sizing. Vertical agenda has no internal scroll, so let the grid
+   * grow to the full-height day list (`rows: 'auto'`) instead of clamping it to a
+   * fixed row count; other modes keep the default fixed-height cell.
    */
   getGridOptions(): { rows?: number | 'auto' } {
-    if (!this._config) return {};
-    return this._isVertical() || (this._isCalendar() && this._expanded) ? { rows: 'auto' } : {};
+    return this._config && this._isVertical() ? { rows: 'auto' } : {};
   }
 
   set hass(hass: HomeAssistant) {
@@ -451,17 +452,22 @@ export class CalendarWeekViewCard extends LitElement {
   }
 
   /**
-   * Toggle the calendar between the bounded scrolling viewport and the full-day
-   * expansion. Collapsing restores the start-hour scroll; the horizontal day
-   * position is left untouched so paging away and back survives the toggle.
+   * Size the calendar's all-day band. Collapsed it holds the fixed reserve;
+   * expanded it grows to the tallest visible column's all-day list so every entry
+   * shows, capped at ALLDAY_MAX_H (a taller list then scrolls within the band).
+   * The left hour gutter tracks this via the shared `--cwv-allday-h`.
    */
-  private _expandToggle(): void {
-    this._expanded = !this._expanded;
-    if (this._expanded) return;
-    void this.updateComplete.then(() => {
-      const strip = this._strip();
-      if (strip) strip.scrollTop = this._startHour() * HOUR_H;
-    });
+  private _measureAllDay(): void {
+    if (!this._isCalendar()) return;
+    let target = ALLDAY_H;
+    if (this._expanded) {
+      let max = 0;
+      for (const band of this.renderRoot.querySelectorAll<HTMLElement>('.day.cal .allday')) {
+        max = Math.max(max, band.scrollHeight);
+      }
+      if (max > 0) target = Math.min(ALLDAY_MAX_H, Math.max(ALLDAY_H, max));
+    }
+    if (target !== this._allDayH) this._allDayH = target;
   }
 
   /** Vertical layout applies to agenda view only; calendar keeps its horizontal time-grid. */
@@ -670,6 +676,7 @@ export class CalendarWeekViewCard extends LitElement {
   protected updated(): void {
     this._ensureResizeObserver();
     if (this._scrollToToday) this._landToday();
+    this._measureAllDay();
   }
 
   /**
@@ -726,7 +733,7 @@ export class CalendarWeekViewCard extends LitElement {
     const styleParts = [
       `--cwv-visible:${cfg.visibleDays ?? 3}`,
       `--cwv-hour-h:${HOUR_H}px`,
-      `--cwv-allday-h:${hasAllDay ? ALLDAY_H : 0}px`,
+      `--cwv-allday-h:${hasAllDay ? (expanded ? this._allDayH : ALLDAY_H) : 0}px`,
     ];
     if (cfg.height) styleParts.push(`--cwv-min-h:${cfg.height}`);
     for (const [key, token] of Object.entries(COLOR_TOKENS)) {
@@ -744,7 +751,6 @@ export class CalendarWeekViewCard extends LitElement {
           notodaytext: cfg.todayText === false,
           vagenda: this._isVertical(),
           calendar,
-          calexpanded: expanded,
         })}
         style=${styleParts.join(';')}
       >
@@ -755,7 +761,7 @@ export class CalendarWeekViewCard extends LitElement {
           <div class="topbar">
             ${this._renderStatus()}
             <div class="topbar-right">
-              ${this._renderLegend()} ${calendar ? this._renderExpandToggle() : ''} ${this._renderHeaderButtons()}
+              ${this._renderLegend()} ${hasAllDay ? this._renderExpandToggle() : ''} ${this._renderHeaderButtons()}
             </div>
           </div>
           <div class=${classMap({ carousel: true, nonav: !this._navEnabled(), vert: this._isVertical() })}>
@@ -888,20 +894,17 @@ export class CalendarWeekViewCard extends LitElement {
     `;
   }
 
-  /**
-   * Calendar-view control: expand the day grid to show the whole day at once (the
-   * card grows, the dashboard scrolls), vs. the default bounded viewport that
-   * scrolls internally by hour.
-   */
+  /** Calendar-view control: grow the all-day band to show every all-day entry
+   *  (up to ALLDAY_MAX_H), vs. the fixed reserve that shows the first and scrolls. */
   private _renderExpandToggle() {
-    const label = this._expanded ? 'Collapse to scrolling view' : 'Expand to the whole day';
+    const label = this._expanded ? 'Collapse all-day events' : 'Show all all-day events';
     return html`
       <button
         class=${classMap({ 'expand-btn': true, on: this._expanded })}
         aria-label=${label}
         title=${label}
         aria-pressed=${this._expanded ? 'true' : 'false'}
-        @click=${() => this._expandToggle()}
+        @click=${() => (this._expanded = !this._expanded)}
       >
         <ha-icon icon=${this._expanded ? 'mdi:arrow-collapse-vertical' : 'mdi:arrow-expand-vertical'}></ha-icon>
       </button>
