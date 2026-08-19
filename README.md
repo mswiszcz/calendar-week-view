@@ -76,7 +76,7 @@ calendars:
 | `visibleDays` | number | `3` | Columns visible at once; the strip scrolls to reveal the rest. |
 | `hideWeekend` | boolean | `false` | Show Monday–Friday only (5 columns). |
 | `height` | string | `520px` | **Minimum** height. The card fills its container (full height in a panel view) and never shrinks below this. |
-| `showNavigation` | boolean | `true` | Show the prev / next / this-week controls. |
+| `showNavigation` | boolean | `true` | Show the week controls and the carousel day arrows. The strip pages by one view and rolls into adjacent weeks; swipe still works. |
 | `showLegend` | boolean | `true` | Show the calendar legend chips. |
 | `legendToggle` | boolean | `true` | Click a legend chip to hide/show that calendar's events. |
 | `addEvents` | boolean | `false` | Show the floating quick-add button (needs ≥1 writable calendar). |
