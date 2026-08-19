@@ -4,11 +4,13 @@ import type { CalendarConfig, CalendarEventInput } from '@/types';
 import {
   autoScrollStartIndex,
   buildDayColumns,
+  CalendarFeature,
   computeWeekStart,
   dayCountFor,
   formatWeekLabel,
   isAllDay,
   normalizeEvent,
+  supportsFeature,
   weekDays,
 } from '@/week';
 
@@ -102,11 +104,70 @@ describe('normalizeEvent', () => {
   test('parses a date-only start in the given zone', () => {
     const ev = normalizeEvent(
       { summary: 'Trip', start: { date: '2026-08-19' }, end: { date: '2026-08-20' } },
-      cal, false, 'America/New_York',
+      cal,
+      false,
+      'America/New_York',
     );
     expect(ev.start.zoneName).toBe('America/New_York');
     expect(ev.start.toISODate()).toBe('2026-08-19');
     expect(ev.start.hour).toBe(0);
+  });
+  test('captures uid and marks non-recurring events', () => {
+    const ev = normalizeEvent(
+      {
+        summary: 'One-off',
+        uid: 'abc-123',
+        start: { dateTime: '2026-08-19T09:00' },
+        end: { dateTime: '2026-08-19T10:00' },
+      },
+      cal,
+      false,
+    );
+    expect(ev.uid).toBe('abc-123');
+    expect(ev.recurrenceId).toBeNull();
+    expect(ev.recurring).toBe(false);
+  });
+  test('marks events with an rrule or recurrence_id as recurring', () => {
+    const master = normalizeEvent(
+      {
+        summary: 'Standup',
+        uid: 'u1',
+        rrule: 'FREQ=DAILY',
+        start: { dateTime: '2026-08-19T09:00' },
+        end: { dateTime: '2026-08-19T09:15' },
+      },
+      cal,
+      false,
+    );
+    const instance = normalizeEvent(
+      {
+        summary: 'Standup',
+        uid: 'u1',
+        recurrence_id: '2026-08-19T09:00:00',
+        start: { dateTime: '2026-08-19T09:00' },
+        end: { dateTime: '2026-08-19T09:15' },
+      },
+      cal,
+      false,
+    );
+    expect(master.recurring).toBe(true);
+    expect(instance.recurring).toBe(true);
+    expect(instance.recurrenceId).toBe('2026-08-19T09:00:00');
+  });
+});
+
+describe('supportsFeature', () => {
+  test('detects a set feature bit', () => {
+    const state = {
+      attributes: { supported_features: CalendarFeature.CREATE | CalendarFeature.DELETE },
+    };
+    expect(supportsFeature(state, CalendarFeature.CREATE)).toBe(true);
+    expect(supportsFeature(state, CalendarFeature.DELETE)).toBe(true);
+    expect(supportsFeature(state, CalendarFeature.UPDATE)).toBe(false);
+  });
+  test('is false for a missing state or no features', () => {
+    expect(supportsFeature(undefined, CalendarFeature.DELETE)).toBe(false);
+    expect(supportsFeature({ attributes: {} }, CalendarFeature.DELETE)).toBe(false);
   });
 });
 
@@ -150,16 +211,26 @@ describe('buildDayColumns', () => {
 
   test('marks today and past days and sorts timed events', () => {
     const late = normalizeEvent(
-      { summary: 'Late', start: { dateTime: '2026-08-19T15:00' }, end: { dateTime: '2026-08-19T16:00' } },
-      cal, false,
+      {
+        summary: 'Late',
+        start: { dateTime: '2026-08-19T15:00' },
+        end: { dateTime: '2026-08-19T16:00' },
+      },
+      cal,
+      false,
     );
     const early = normalizeEvent(
-      { summary: 'Early', start: { dateTime: '2026-08-19T08:00' }, end: { dateTime: '2026-08-19T09:00' } },
-      cal, false,
+      {
+        summary: 'Early',
+        start: { dateTime: '2026-08-19T08:00' },
+        end: { dateTime: '2026-08-19T09:00' },
+      },
+      cal,
+      false,
     );
     const cols = buildDayColumns({ days, now: nowRef, events: [late, early] });
-    expect(cols[0].isPast).toBe(true);       // Mon
-    expect(cols[2].isToday).toBe(true);       // Wed
+    expect(cols[0].isPast).toBe(true); // Mon
+    expect(cols[2].isToday).toBe(true); // Wed
     expect(cols[2].timedEvents.map((e) => e.summary)).toEqual(['Early', 'Late']);
   });
 });

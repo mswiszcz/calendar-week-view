@@ -10,7 +10,7 @@ export const styles = css`
    * dark — without keying off prefers-color-scheme, which does not follow the HA theme.
    */
   :host {
-    --cwv-day-h: 416px;
+    --cwv-min-h: 520px;
     --cwv-visible: 3;
     --on-primary: var(--text-primary-color, #ffffff);
     --neutral-tile: color-mix(in srgb, var(--primary-text-color, #1a1c1e) 3%, var(--card-background-color, #ffffff));
@@ -18,9 +18,15 @@ export const styles = css`
     --today-tint: color-mix(in srgb, var(--primary-color, #0aa2e6) 8%, var(--card-background-color, #ffffff));
   }
 
+  /* Fill the dashboard space: the card stretches to its container's height in a
+     panel view, and falls back to --cwv-min-h in masonry / sections layouts. */
   ha-card {
     position: relative;
     overflow: hidden;
+    height: 100%;
+    min-height: var(--cwv-min-h, 520px);
+    display: flex;
+    flex-direction: column;
   }
   ha-card.nobackground {
     background: none;
@@ -28,9 +34,13 @@ export const styles = css`
     border: none;
   }
   ha-card.compact {
-    --cwv-day-h: 340px;
+    --cwv-min-h: 420px;
   }
   .cwv {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
     padding: 16px 16px 12px;
   }
   ha-card.compact .cwv {
@@ -66,7 +76,9 @@ export const styles = css`
     background: var(--primary-color);
     color: var(--on-primary);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.22);
-    transition: transform 0.14s cubic-bezier(0.2, 0.7, 0.3, 1), filter 0.14s ease;
+    transition:
+      transform 0.14s cubic-bezier(0.2, 0.7, 0.3, 1),
+      filter 0.14s ease;
   }
   .fab:hover {
     transform: translateY(-3px) scale(1.05);
@@ -102,7 +114,9 @@ export const styles = css`
     cursor: pointer;
     display: grid;
     place-items: center;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   }
   .rbtn:hover {
@@ -175,12 +189,15 @@ export const styles = css`
     opacity: 0.45;
   }
 
-  /* week — horizontal scroll strip, ~visibleDays columns visible, snaps */
+  /* week — horizontal scroll strip, ~visibleDays columns visible, snaps.
+     Fills the card height; columns stretch to fill. */
   .week {
     position: relative;
+    flex: 1;
+    min-height: 0;
     display: flex;
     gap: 10px;
-    align-items: center;
+    align-items: stretch;
     overflow-x: auto;
     padding: 6px 2px;
     scroll-snap-type: x proximity;
@@ -202,13 +219,11 @@ export const styles = css`
     display: flex;
     flex-direction: column;
     min-width: 0;
-    height: var(--cwv-day-h, 416px);
     background: var(--neutral-tile);
     border-radius: 14px;
     overflow: hidden;
   }
   .day.today {
-    height: calc(var(--cwv-day-h, 416px) + 40px);
     background: var(--today-tint);
     border-radius: 16px;
     border: 1.5px solid color-mix(in srgb, var(--primary-color) 42%, var(--divider-color));
@@ -380,10 +395,127 @@ export const styles = css`
   .details {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    font-size: 14px;
+    gap: 14px;
+    min-width: 300px;
+    animation: det-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
-  .details .muted {
+  @keyframes det-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .details {
+      animation: none;
+    }
+  }
+  .details ha-alert {
+    display: block;
+  }
+
+  /* calendar identity chip — the event's color is the modal's signature */
+  .det-head {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    align-self: flex-start;
+    padding: 6px 12px 6px 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--c, var(--primary-color)) 14%, var(--card-background-color));
+  }
+  .det-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--c, var(--primary-color));
+    flex: none;
+  }
+  .det-cal {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: var(--primary-text-color);
+  }
+  .det-recur {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: color-mix(in srgb, var(--c, var(--primary-color)) 45%, var(--primary-text-color));
+  }
+  .det-recur ha-icon {
+    --mdc-icon-size: 15px;
+  }
+
+  /* the hero: date + time carried at the same weight the day columns use */
+  .det-when {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+  }
+  .det-when > ha-icon {
+    --mdc-icon-size: 26px;
+    color: var(--c, var(--primary-color));
+    flex: none;
+  }
+  .when-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .when-main {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: var(--primary-text-color);
+  }
+  .when-sub {
+    font-size: 15px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
     color: var(--secondary-text-color);
+  }
+
+  .det-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13.5px;
+    color: var(--secondary-text-color);
+  }
+  .det-meta ha-icon {
+    --mdc-icon-size: 19px;
+    color: var(--secondary-text-color);
+    flex: none;
+  }
+  .det-desc {
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--primary-text-color);
+    white-space: pre-line;
+    padding-top: 12px;
+    border-top: 1px solid var(--divider-color);
+  }
+
+  mwc-button.danger {
+    --mdc-theme-primary: var(--error-color, #db4437);
+  }
+  mwc-button ha-icon {
+    --mdc-icon-size: 18px;
+  }
+  .confirm-note {
+    margin-top: 2px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: color-mix(in srgb, var(--error-color, #db4437) 90%, var(--primary-text-color));
+    background: color-mix(in srgb, var(--error-color, #db4437) 12%, var(--card-background-color));
   }
 `;

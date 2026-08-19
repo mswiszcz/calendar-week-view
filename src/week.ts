@@ -1,6 +1,17 @@
 import { DateTime } from 'luxon';
 import type { CalendarConfig, CalendarEventInput, DayColumn, WeekEvent, WeekStart } from '@/types';
 
+/** HA calendar entity feature bit flags (bitwise `supported_features`). */
+export const CalendarFeature = { CREATE: 1, DELETE: 2, UPDATE: 4 } as const;
+
+/** True when a calendar entity state exposes the given feature bit. */
+export function supportsFeature(
+  state: { attributes?: { supported_features?: number } } | undefined,
+  bit: number,
+): boolean {
+  return !!state && (Number(state.attributes?.supported_features ?? 0) & bit) !== 0;
+}
+
 /** Luxon weekday number for the configured week start (Mon=1 … Sun=7). */
 export function weekStartWeekday(weekStartsOn: WeekStart): number {
   return weekStartsOn === 'sunday' ? 7 : 1;
@@ -73,6 +84,10 @@ export function normalizeEvent(
     summary,
     description: input.description ?? null,
     location: input.location ?? null,
+    uid: input.uid ?? null,
+    recurrenceId: input.recurrence_id ?? null,
+    rrule: input.rrule ?? null,
+    recurring: !!(input.recurrence_id || input.rrule),
     start: start.dt,
     end: end.dt,
     originalStart: start.dt,
