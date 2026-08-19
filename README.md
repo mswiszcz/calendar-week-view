@@ -91,6 +91,8 @@ calendars:
 | `showClock` | boolean | `true` | Show the live clock and date in the status header. |
 | `showNextEvent` | boolean | `true` | Show the next upcoming event with a live countdown in the status header. |
 | `addEvents` | boolean | `false` | Show the floating quick-add button (needs ≥1 writable calendar). It writes to all writable configured calendars. |
+| `headerButtons` | array | — | Custom buttons at the top-right of the header. See [Custom buttons](#custom-buttons). |
+| `floatingButtons` | array | — | Custom buttons beside the floating **+** at the bottom-right. See [Custom buttons](#custom-buttons). |
 | `weather` | object | — | Optional hourly weather. See [Weather options](#weather-options). |
 | `colors` | object | — | Override UI colors. See [Color options](#color-options). |
 | `combineSimilarEvents` | boolean | `false` | Merge identical events that appear in more than one calendar. |
@@ -185,6 +187,45 @@ event starting **tomorrow** is surfaced (shown as `Tomorrow`) — the natural
 The **return-to-today** glyph (part of `showNavigation`) appears only when today
 has scrolled out of view; its arrow points toward today, and clicking it jumps
 straight back — from any distance, not just the current week.
+
+## Custom buttons
+
+Two optional lists add your own buttons, each firing a standard Home Assistant
+action (`navigate`, `url`, `call-service`, `more-info`, `toggle`):
+
+- **`headerButtons`** render at the **top-right** of the header, vertically
+  centered, as pill chips (icon plus optional label).
+- **`floatingButtons`** render as round icon buttons **to the left of the
+  floating +** at the bottom-right. They work with or without `addEvents`.
+
+```yaml
+headerButtons:
+  - icon: mdi:cog
+    name: Settings
+    tap_action:
+      action: navigate
+      navigation_path: /config
+  - icon: mdi:web
+    tap_action:
+      action: url
+      url_path: https://home-assistant.io
+floatingButtons:
+  - icon: mdi:lightbulb
+    name: Toggle lamp
+    color: '#f5a623'
+    tap_action:
+      action: call-service
+      service: light.toggle
+      target:
+        entity_id: light.living_room
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `icon` | string | MDI icon (e.g. `mdi:cog`). Required. |
+| `name` | string | Header: shown as the button label. Floating: used as the tooltip. |
+| `color` | CSS color | Optional accent for the button's icon (and header chip). |
+| `tap_action` | object | A Home Assistant [action](https://www.home-assistant.io/dashboards/actions/). A button without one renders but does nothing. |
 
 ## Managing events
 

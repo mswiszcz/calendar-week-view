@@ -1,6 +1,20 @@
+import type { ActionConfig } from 'custom-card-helpers';
 import type { DateTime } from 'luxon';
 
 export type WeekStart = 'monday' | 'sunday';
+
+/**
+ * A user-defined button. `icon` is required; `name` labels it in the header and
+ * is the tooltip on a floating button. `tap_action` is a standard Home Assistant
+ * action (navigate, url, call-service, more-info, toggle); a button without one
+ * renders but does nothing.
+ */
+export interface ButtonConfig {
+  icon: string;
+  name?: string;
+  color?: string;
+  tap_action?: ActionConfig;
+}
 
 /** Agenda lists events per day; calendar spans them over an hour grid. */
 export type ViewMode = 'agenda' | 'calendar';
@@ -67,6 +81,8 @@ export interface CardConfig {
   showNextEvent?: boolean;
   clockFormat?: string;
   headerDateFormat?: string;
+  headerButtons?: ButtonConfig[];
+  floatingButtons?: ButtonConfig[];
   texts?: Record<string, string>;
 }
 
