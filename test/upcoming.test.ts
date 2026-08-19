@@ -1,7 +1,7 @@
 import { DateTime } from 'luxon';
 import { describe, expect, test } from 'vitest';
 import type { CalendarConfig, CalendarEventInput } from '@/types';
-import { formatCountdown, normalizeEvent, pickUpcoming, todayRelation } from '@/week';
+import { eventStatus, formatCountdown, formatEventDuration, normalizeEvent, pickUpcoming, todayRelation } from '@/week';
 
 const cal: CalendarConfig = { entity: 'calendar.personal', name: 'Personal', color: '#3b82f6' };
 const now = DateTime.fromISO('2026-08-19T10:00:00', { zone: 'utc' }); // Wed
@@ -94,5 +94,70 @@ describe('todayRelation', () => {
 
   test('1 when today is after the visible range', () => {
     expect(todayRelation(DateTime.fromISO('2026-09-10'), left, right)).toBe(1);
+  });
+});
+
+describe('eventStatus', () => {
+  test('when upcoming counts down to the start', () => {
+    const s = eventStatus(now, ev('x', '2026-08-19T12:15:00', '2026-08-19T13:00:00'));
+    expect(s.phase).toBe('upcoming');
+    expect(s.headline).toBe('2h 15m');
+    expect(s.detail).toBe('until it starts');
+    expect(s.progress).toBeNull();
+  });
+
+  test('with under an hour shows minutes only', () => {
+    expect(eventStatus(now, ev('x', '2026-08-19T10:30:00', '2026-08-19T11:00:00')).headline).toBe('30m');
+  });
+
+  test('when in progress shows time left and elapsed progress', () => {
+    const s = eventStatus(now, ev('x', '2026-08-19T09:00:00', '2026-08-19T11:00:00'));
+    expect(s.phase).toBe('now');
+    expect(s.headline).toBe('1h');
+    expect(s.detail).toBe('left · happening now');
+    expect(s.progress).toBeCloseTo(0.5, 5);
+  });
+
+  test('when finished reads ended with time since', () => {
+    const s = eventStatus(now, ev('x', '2026-08-19T08:00:00', '2026-08-19T09:00:00'));
+    expect(s.phase).toBe('ended');
+    expect(s.headline).toBe('Ended');
+    expect(s.detail).toBe('1h ago');
+  });
+
+  test('when all-day today reads Today', () => {
+    const s = eventStatus(now, allDay('x', '2026-08-19', '2026-08-20'));
+    expect(s.phase).toBe('now');
+    expect(s.headline).toBe('Today');
+    expect(s.detail).toBe('all-day event');
+    expect(s.progress).toBeNull();
+  });
+
+  test('when all-day tomorrow reads Tomorrow', () => {
+    expect(eventStatus(now, allDay('x', '2026-08-20', '2026-08-21')).headline).toBe('Tomorrow');
+  });
+
+  test('when all-day days ahead counts the days', () => {
+    expect(eventStatus(now, allDay('x', '2026-08-22', '2026-08-23')).headline).toBe('In 3d');
+  });
+
+  test('when all-day yesterday reads Yesterday and ended', () => {
+    const s = eventStatus(now, allDay('x', '2026-08-18', '2026-08-19'));
+    expect(s.phase).toBe('ended');
+    expect(s.headline).toBe('Yesterday');
+  });
+});
+
+describe('formatEventDuration', () => {
+  test('minutes under an hour', () => {
+    expect(formatEventDuration(ev('x', '2026-08-19T12:15:00', '2026-08-19T13:00:00'))).toBe('45 min');
+  });
+
+  test('whole hours drop the minutes', () => {
+    expect(formatEventDuration(ev('x', '2026-08-19T09:00:00', '2026-08-19T11:00:00'))).toBe('2 hr');
+  });
+
+  test('hours and minutes together', () => {
+    expect(formatEventDuration(ev('x', '2026-08-19T09:00:00', '2026-08-19T10:30:00'))).toBe('1 hr 30 min');
   });
 });

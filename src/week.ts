@@ -3,6 +3,7 @@ import type {
   CalendarConfig,
   CalendarEventInput,
   DayColumn,
+  EventStatus,
   PositionedEvent,
   StackedEvent,
   WeekEvent,
@@ -275,6 +276,85 @@ export function formatCountdown(now: DateTime, ev: WeekEvent): string {
     return m ? `in ${h}h ${m}m` : `in ${h}h`;
   }
   return `in ${Math.floor(totalMin / 1440)}d`;
+}
+
+/** Compact minute span for a countdown hero: `45m`, `2h 15m`, `3h`, `2d` (min 1m). */
+function compactMinutes(totalMin: number): string {
+  const min = Math.max(1, Math.round(totalMin));
+  if (min < 60) return `${min}m`;
+  if (min < 1440) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return m ? `${h}h ${m}m` : `${h}h`;
+  }
+  return `${Math.round(min / 1440)}d`;
+}
+
+/** Human event length for the details popup: `45 min`, `1 hr`, `1 hr 30 min`. */
+export function formatEventDuration(ev: WeekEvent): string {
+  const min = Math.max(0, Math.round(ev.originalEnd.diff(ev.originalStart).as('minutes')));
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m ? `${h} hr ${m} min` : `${h} hr`;
+}
+
+/**
+ * Live status of an event relative to `now` for the details popup's countdown
+ * hero. Timed events count down to their start, show the time left while running
+ * (with an elapsed `progress`), then read "Ended". All-day events resolve to a
+ * day-relative headline (Today / Tomorrow / In 3d / Yesterday / 2d ago).
+ */
+export function eventStatus(now: DateTime, ev: WeekEvent): EventStatus {
+  if (ev.allDay || ev.multiDay) {
+    const startDay = ev.originalStart.startOf('day');
+    const endDay = ev.originalEnd.startOf('day');
+    const today = now.startOf('day');
+    if (today >= startDay && today < endDay) {
+      return { phase: 'now', headline: 'Today', detail: 'all-day event', progress: null };
+    }
+    const days = Math.round(startDay.diff(today, 'days').days);
+    if (days > 0) {
+      return {
+        phase: 'upcoming',
+        headline: days === 1 ? 'Tomorrow' : `In ${days}d`,
+        detail: 'all-day event',
+        progress: null,
+      };
+    }
+    const ago = Math.abs(days);
+    return {
+      phase: 'ended',
+      headline: ago === 1 ? 'Yesterday' : `${ago}d ago`,
+      detail: 'all-day event',
+      progress: null,
+    };
+  }
+  const { originalStart: start, originalEnd: end } = ev;
+  if (now < start) {
+    return {
+      phase: 'upcoming',
+      headline: compactMinutes(start.diff(now).as('minutes')),
+      detail: 'until it starts',
+      progress: null,
+    };
+  }
+  if (now < end) {
+    const total = end.diff(start).as('minutes');
+    const progress = total > 0 ? Math.min(1, Math.max(0, now.diff(start).as('minutes') / total)) : 1;
+    return {
+      phase: 'now',
+      headline: compactMinutes(end.diff(now).as('minutes')),
+      detail: 'left · happening now',
+      progress,
+    };
+  }
+  return {
+    phase: 'ended',
+    headline: 'Ended',
+    detail: `${compactMinutes(now.diff(end).as('minutes'))} ago`,
+    progress: null,
+  };
 }
 
 /** Where today sits relative to the visible day range: -1 before, 0 within, 1 after. */
