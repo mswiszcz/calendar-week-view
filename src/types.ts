@@ -2,6 +2,9 @@ import type { DateTime } from 'luxon';
 
 export type WeekStart = 'monday' | 'sunday';
 
+/** Agenda lists events per day; calendar spans them over an hour grid. */
+export type ViewMode = 'agenda' | 'calendar';
+
 export interface CalendarConfig {
   entity: string;
   name?: string;
@@ -34,6 +37,8 @@ export interface CardConfig {
   title?: string;
   calendars: CalendarConfig[];
   weekStartsOn?: WeekStart;
+  viewMode?: ViewMode;
+  startHour?: number;
   visibleDays?: number;
   hideWeekend?: boolean;
   height?: string;
@@ -100,6 +105,19 @@ export interface DayColumn {
   isPast: boolean;
   allDayEvents: WeekEvent[];
   timedEvents: WeekEvent[];
+}
+
+/**
+ * A timed event placed on the calendar-view hour grid. `startMin`/`endMin` are
+ * minutes from the column's midnight; `col`/`cols` split the column width so
+ * concurrent events sit side by side (`col` of `cols` lanes).
+ */
+export interface PositionedEvent {
+  event: WeekEvent;
+  startMin: number;
+  endMin: number;
+  col: number;
+  cols: number;
 }
 
 export interface HourlyForecast {

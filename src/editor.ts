@@ -9,6 +9,11 @@ const GENERAL_SCHEMA = [
     name: 'weekStartsOn',
     selector: { select: { options: ['monday', 'sunday'], mode: 'dropdown' } },
   },
+  {
+    name: 'viewMode',
+    selector: { select: { options: ['agenda', 'calendar'], mode: 'dropdown' } },
+  },
+  { name: 'startHour', selector: { number: { min: 0, max: 23, mode: 'box' } } },
   { name: 'visibleDays', selector: { number: { min: 1, max: 7, mode: 'box' } } },
   { name: 'height', selector: { text: {} } },
   { name: 'hideWeekend', selector: { boolean: {} } },
@@ -37,6 +42,8 @@ const ADVANCED_SCHEMA = [
 const LABELS: Record<string, string> = {
   title: 'Title',
   weekStartsOn: 'Week starts on',
+  viewMode: 'View mode',
+  startHour: 'Start hour (calendar view)',
   visibleDays: 'Visible days',
   height: 'Minimum height (e.g. 520px)',
   hideWeekend: 'Hide weekend',

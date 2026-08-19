@@ -7,11 +7,13 @@ import {
   computeWeekStart,
   dayCountFor,
   isAllDay,
+  layoutDayEvents,
   normalizeEvent,
   supportsFeature,
   weekDays,
   windowDays,
 } from '@/week';
+import type { WeekEvent } from '@/types';
 
 const now = DateTime.fromISO('2026-08-19T10:00:00', { zone: 'utc' }); // Wed
 
@@ -176,6 +178,53 @@ describe('normalizeEvent key / combineSimilar', () => {
   });
   test('without combineSimilar keeps per-calendar events distinct', () => {
     expect(normalizeEvent(input, calA, false).key).not.toBe(normalizeEvent(input, calB, false).key);
+  });
+});
+
+const bySummary = (placed: ReturnType<typeof layoutDayEvents>) =>
+  Object.fromEntries(placed.map((p) => [p.event.summary, p]));
+
+describe('layoutDayEvents', () => {
+  const timed = (summary: string, start: string, end: string): WeekEvent =>
+    normalizeEvent(
+      { summary, start: { dateTime: `2026-08-19T${start}` }, end: { dateTime: `2026-08-19T${end}` } },
+      cal,
+      false,
+    );
+
+  test('non-overlapping events each fill the whole width', () => {
+    const placed = layoutDayEvents([timed('A', '09:00', '10:00'), timed('B', '11:00', '12:00')]);
+    expect(placed.every((p) => p.cols === 1 && p.col === 0)).toBe(true);
+  });
+
+  test('computes minute offsets from midnight', () => {
+    const [p] = layoutDayEvents([timed('A', '08:30', '09:15')]);
+    expect(p.startMin).toBe(510);
+    expect(p.endMin).toBe(555);
+  });
+
+  test('two overlapping events split into two lanes', () => {
+    const p = bySummary(layoutDayEvents([timed('A', '09:00', '11:00'), timed('B', '10:00', '12:00')]));
+    expect([p.A.cols, p.B.cols]).toEqual([2, 2]);
+    expect([p.A.col, p.B.col]).toEqual([0, 1]);
+  });
+
+  test('a transitive cluster shares lanes where events do not overlap', () => {
+    // A(9-11) & B(10-12) overlap; C(11:30-13) clears A, so C reuses A's lane.
+    const p = bySummary(
+      layoutDayEvents([timed('A', '09:00', '11:00'), timed('B', '10:00', '12:00'), timed('C', '11:30', '13:00')]),
+    );
+    expect([p.A.cols, p.B.cols, p.C.cols]).toEqual([2, 2, 2]);
+    expect([p.A.col, p.B.col, p.C.col]).toEqual([0, 1, 0]);
+  });
+
+  test('back-to-back events reuse a lane within a cluster', () => {
+    // B spans the pair, forcing 2 lanes; A ends as C starts, so they share lane 0.
+    const p = bySummary(
+      layoutDayEvents([timed('A', '09:00', '10:00'), timed('B', '09:00', '11:00'), timed('C', '10:00', '11:00')]),
+    );
+    expect([p.A.cols, p.B.cols, p.C.cols]).toEqual([2, 2, 2]);
+    expect([p.A.col, p.B.col, p.C.col]).toEqual([0, 1, 0]);
   });
 });
 
