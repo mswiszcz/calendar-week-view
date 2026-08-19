@@ -34,6 +34,21 @@ export function weekDays(weekStart: DateTime, dayCount: number): DateTime[] {
   return Array.from({ length: dayCount }, (_, i) => weekStart.plus({ days: i }).startOf('day'));
 }
 
+/**
+ * Days for a multi-week carousel window: `weeks` consecutive weeks starting at
+ * `firstWeekStart`, each contributing its first `dayCount` days. With `dayCount`
+ * of 5 this yields a continuous weekday strip (weekends skipped between weeks).
+ */
+export function windowDays(firstWeekStart: DateTime, weeks: number, dayCount: number): DateTime[] {
+  const days: DateTime[] = [];
+  for (let w = 0; w < weeks; w++) {
+    for (let d = 0; d < dayCount; d++) {
+      days.push(firstWeekStart.plus({ days: w * 7 + d }).startOf('day'));
+    }
+  }
+  return days;
+}
+
 /** First visible column index so today stays on screen within a `visibleDays` window. */
 export function autoScrollStartIndex(todayIndex: number, dayCount: number, visibleDays: number): number {
   if (todayIndex < 0) return 0;

@@ -12,6 +12,7 @@ import {
   normalizeEvent,
   supportsFeature,
   weekDays,
+  windowDays,
 } from '@/week';
 
 const now = DateTime.fromISO('2026-08-19T10:00:00', { zone: 'utc' }); // Wed
@@ -28,6 +29,22 @@ describe('computeWeekStart', () => {
   });
   test('with negative offset moves back a week', () => {
     expect(computeWeekStart(now, 'monday', -1).toISODate()).toBe('2026-08-10');
+  });
+});
+
+describe('windowDays', () => {
+  const firstWeek = DateTime.fromISO('2026-08-17'); // Mon
+  test('spans consecutive weeks with 7-day weeks', () => {
+    const days = windowDays(firstWeek, 3, 7);
+    expect(days).toHaveLength(21);
+    expect(days[0].toISODate()).toBe('2026-08-17');
+    expect(days[20].toISODate()).toBe('2026-09-06');
+  });
+  test('skips weekends with 5-day weeks', () => {
+    const days = windowDays(firstWeek, 2, 5);
+    expect(days).toHaveLength(10);
+    expect(days[4].toISODate()).toBe('2026-08-21'); // Fri
+    expect(days[5].toISODate()).toBe('2026-08-24'); // next Mon (Sat/Sun skipped)
   });
 });
 
