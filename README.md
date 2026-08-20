@@ -7,7 +7,7 @@ managing your calendars, focused on the current week.
 - **Flexible layout** — a horizontal scrolling day strip, a vertical full-width stack, a single day, or locked to today.
 - **Rich events** — start–end times, all-day and multi-day pills, and per-event **hourly weather**.
 - **Status header** — a live **clock**, the date, and the **next upcoming event** with a countdown.
-- **Manage events** — view, add, **edit**, and **delete** events (with this / following / all scopes for recurring ones) through a single dialog.
+- **Manage events** — view, add, **edit**, and **delete** events (with this / following / all scopes for recurring ones) through a single dialog, where your calendar integration supports each action.
 - **Custom buttons** — your own header and floating buttons firing standard Home Assistant actions.
 - **Themeable** — override any UI color; configure it all in the **visual editor** or in YAML.
 
@@ -264,11 +264,15 @@ it is happening, or how long ago it ended — followed by the schedule (date, ti
 and duration), the location (with a **Maps** link), notes, the weather strip, and
 a **Repeats** badge on recurring events.
 
-When the event's calendar supports it (`local_calendar`, CalDAV, most Google
-setups), the overview also offers **Edit** and **Delete**. Recurring events ask
-whether the change applies to **this event**, **this and following events**, or
-**all events**, matching Home Assistant's own calendar. Use the floating **+**
-button (enable `addEvents`) to create events.
+**Edit** and **Delete** appear only when the event's calendar supports them, which
+differs by integration. **Delete** needs an integration that allows event deletion
+— `local_calendar` and most Google setups. **Edit** needs one that allows event
+*updates*, which in practice means `local_calendar`: Home Assistant's Google and
+CalDAV integrations can create events (and Google can delete them) but cannot
+update them, so **Edit** stays hidden there. Recurring events ask whether the
+change applies to **this event**, **this and following events**, or **all events**,
+matching Home Assistant's own calendar. Use the floating **+** button (enable
+`addEvents`) to create events.
 
 Add and edit share one dialog, styled to match the event overview: a
 calendar-colour header shows the name and the event's schedule as you fill it in.
