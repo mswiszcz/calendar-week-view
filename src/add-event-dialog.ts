@@ -3,21 +3,33 @@ import { property, state } from 'lit/decorators.js';
 import { DateTime } from 'luxon';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { CalendarConfig, RecurrenceScope, WeekEvent } from '@/types';
-import { buildCreateData, buildUpdateEvent, draftError, type EventDraft, formatWhenLine } from '@/event-payload';
+import {
+  buildCreateData,
+  buildUpdateEvent,
+  draftError,
+  type EventDraft,
+  formatDateLabel,
+  formatWhenLine,
+  nudgedEnd,
+} from '@/event-payload';
 
 type Mode = 'add' | 'edit';
+type PickKind = 'date' | 'time';
 
 const LOCAL_DT = "yyyy-LL-dd'T'HH:mm";
 
 export class CalendarWeekViewAddDialog extends LitElement {
   static styles = css`
+    * {
+      box-sizing: border-box;
+    }
     :host {
       --neutral-tile: color-mix(in srgb, var(--primary-text-color, #1a1c1e) 5%, var(--card-background-color, #fff));
       --hover-tint: color-mix(in srgb, var(--primary-text-color, #1a1c1e) 8%, transparent);
     }
     ha-dialog {
-      --mdc-dialog-min-width: 400px;
-      --mdc-dialog-max-width: 460px;
+      --mdc-dialog-min-width: 500px;
+      --mdc-dialog-max-width: 560px;
       --ha-dialog-border-radius: 18px;
       --mdc-dialog-container-shape: 18px;
       --dialog-content-padding: 0;
@@ -45,7 +57,7 @@ export class CalendarWeekViewAddDialog extends LitElement {
 
     /* slim colour band — the calendar's colour signs the compose surface */
     .band {
-      padding: 18px 22px 20px;
+      padding: 18px 20px 20px;
       color: #fff;
       text-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
       background: linear-gradient(
@@ -56,36 +68,7 @@ export class CalendarWeekViewAddDialog extends LitElement {
       transition: background 0.4s ease;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-    }
-    .band-cal {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.11em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.87);
-    }
-    .band-cal .swatch {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: #fff;
-      opacity: 0.9;
-    }
-    .band-rep {
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      padding-left: 8px;
-      margin-left: 4px;
-      border-left: 1px solid rgba(255, 255, 255, 0.32);
-      letter-spacing: 0.04em;
-    }
-    .band-rep ha-icon {
-      --mdc-icon-size: 14px;
+      gap: 8px;
     }
     .band-title {
       width: 100%;
@@ -110,6 +93,16 @@ export class CalendarWeekViewAddDialog extends LitElement {
       border-bottom-color: #fff;
       border-bottom-style: solid;
     }
+    .band-title.missing {
+      border-bottom-color: #ffb4ab;
+      border-bottom-style: solid;
+    }
+    .band-hint {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #ffd7d2;
+      margin-top: -2px;
+    }
     .band-when {
       display: flex;
       align-items: center;
@@ -119,9 +112,27 @@ export class CalendarWeekViewAddDialog extends LitElement {
       color: rgba(255, 255, 255, 0.86);
       font-variant-numeric: tabular-nums;
     }
-    .band-when ha-icon {
+    .band-when > ha-icon {
       --mdc-icon-size: 16px;
       opacity: 0.9;
+      flex: none;
+    }
+    .band-rep {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.92);
+      background: rgba(255, 255, 255, 0.16);
+      padding: 3px 8px;
+      border-radius: 999px;
+    }
+    .band-rep ha-icon {
+      --mdc-icon-size: 13px;
     }
 
     .body {
@@ -184,15 +195,13 @@ export class CalendarWeekViewAddDialog extends LitElement {
       font-weight: 500;
       font-family: inherit;
     }
-    input[type='date'].tin,
-    input[type='datetime-local'].tin {
-      font-variant-numeric: tabular-nums;
-    }
     .spaced {
       margin-bottom: 10px;
     }
 
-    /* stacked datetime field (Starts / Ends) */
+    /* date / time picker tile — a luxon-formatted label (matching the header)
+       over a transparent native input, so the display format is ours while the
+       picker stays native. */
     .dt-field {
       display: flex;
       flex-direction: column;
@@ -205,6 +214,64 @@ export class CalendarWeekViewAddDialog extends LitElement {
       letter-spacing: 0.06em;
       text-transform: uppercase;
       color: var(--secondary-text-color);
+    }
+    .when-row {
+      display: flex;
+      gap: 10px;
+    }
+    .when-row .pick.date {
+      flex: 2 1 0;
+    }
+    .when-row .pick.time {
+      flex: 1 1 0;
+    }
+    .pick {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      width: 100%;
+      min-width: 0;
+      background: var(--neutral-tile);
+      border: 1px solid var(--divider-color);
+      border-radius: 12px;
+      padding: 11px 13px;
+      cursor: pointer;
+      overflow: hidden;
+      transition:
+        border-color 0.15s ease,
+        background 0.15s ease;
+    }
+    .pick:focus-within {
+      border-color: color-mix(in srgb, var(--primary-color) 60%, var(--divider-color));
+      background: var(--card-background-color);
+    }
+    .pick-ic {
+      --mdc-icon-size: 18px;
+      color: var(--secondary-text-color);
+      flex: none;
+    }
+    .pick-val {
+      min-width: 0;
+      font-size: 14.5px;
+      font-weight: 600;
+      color: var(--primary-text-color);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .pick-native {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      border: none;
+      margin: 0;
+      padding: 0;
+      cursor: pointer;
+      font: inherit;
     }
 
     /* segmented (all day / timed, recurrence scope) */
@@ -383,7 +450,7 @@ export class CalendarWeekViewAddDialog extends LitElement {
       box-shadow: none;
     }
 
-    :is(.tin, .btn, .seg button, .cchip, .band-title):focus-visible {
+    :is(.tin, .btn, .seg button, .cchip, .band-title, .pick-native):focus-visible {
       outline: 2px solid color-mix(in srgb, var(--primary-color) 65%, transparent);
       outline-offset: 2px;
     }
@@ -406,6 +473,7 @@ export class CalendarWeekViewAddDialog extends LitElement {
   @state() private _location = '';
   @state() private _description = '';
   @state() private _error = '';
+  @state() private _nameMissing = false;
   @state() private _recurring = false;
   @state() private _scope: RecurrenceScope = 'this';
   @state() private _rrule: string | null = null;
@@ -428,6 +496,7 @@ export class CalendarWeekViewAddDialog extends LitElement {
     this._allDay = true;
     this._recurring = false;
     this._error = '';
+    this._nameMissing = false;
     this._open = true;
   }
 
@@ -450,37 +519,49 @@ export class CalendarWeekViewAddDialog extends LitElement {
     this._uid = e.uid ?? '';
     this._recurrenceId = e.recurrenceId;
     this._error = '';
+    this._nameMissing = false;
     this._open = true;
   }
 
   render() {
     if (!this._open) return html``;
     const heading = this._mode === 'edit' ? 'Edit event' : 'Add event';
+    const showCal = this.calendars.length > 1;
     return html`
-      <ha-dialog open hideActions aria-label=${heading} @closed=${() => (this._open = false)}>
+      <ha-dialog
+        open
+        hideActions
+        aria-label=${heading}
+        @opened=${this._onOpened}
+        @closed=${() => (this._open = false)}
+      >
         <div class="gate" style="--c:${this._color || 'var(--primary-color)'}">
           <div class="band">
-            <div class="band-cal">
-              <span class="swatch"></span>${this._calendarName}
+            <input
+              class=${this._nameMissing ? 'band-title missing' : 'band-title'}
+              autofocus
+              .value=${this._title}
+              placeholder="Name this event"
+              aria-label="Event name"
+              @input=${this._onNameInput}
+              @focus=${() => (this._nameMissing = false)}
+              @blur=${this._onNameBlur}
+            />
+            ${this._nameMissing ? html`<span class="band-hint">Please name this event</span>` : ''}
+            <div class="band-when">
+              <ha-icon icon="mdi:calendar-clock-outline"></ha-icon>
+              <span>${this._whenLine()}</span>
               ${
                 this._mode === 'edit' && this._recurring
                   ? html`<span class="band-rep"><ha-icon icon="mdi:repeat"></ha-icon>Repeats</span>`
                   : ''
               }
             </div>
-            <input
-              class="band-title"
-              .value=${this._title}
-              placeholder="Name this event"
-              aria-label="Event name"
-              @input=${(e: Event) => (this._title = (e.target as HTMLInputElement).value)}
-            />
-            <div class="band-when"><ha-icon icon="mdi:calendar-clock-outline"></ha-icon>${this._whenLine()}</div>
           </div>
           <div class="body">
             ${this._error ? html`<ha-alert alert-type="error">${this._error}</ha-alert>` : ''}
-            ${this._mode === 'edit' ? this._renderFixedCalendar() : this._renderCalendarChips()}
-            <span class="flabel">When</span>
+            ${showCal ? (this._mode === 'edit' ? this._renderFixedCalendar() : this._renderCalendarChips()) : ''}
+            <span class="flabel ${showCal ? '' : 'first'}">When</span>
             ${this._renderWhen()}
             <span class="flabel">Where <span class="opt">optional</span></span>
             <input
@@ -546,6 +627,10 @@ export class CalendarWeekViewAddDialog extends LitElement {
   }
 
   private _renderWhen() {
+    const startDate = this._start.slice(0, 10);
+    const startTime = this._start.slice(11, 16);
+    const endDate = this._end.slice(0, 10);
+    const endTime = this._end.slice(11, 16);
     return html`
       <div class="seg spaced">
         <button class=${this._allDay ? 'on' : ''} @click=${() => this._setAllDay(true)}>
@@ -557,36 +642,47 @@ export class CalendarWeekViewAddDialog extends LitElement {
       </div>
       ${
         this._allDay
-          ? html`<input
-              type="date"
-              class="tin"
-              .value=${this._date}
-              aria-label="Date"
-              @input=${(e: Event) => (this._date = (e.target as HTMLInputElement).value)}
-            />`
+          ? html`<div class="dt-field">
+              ${this._picker('date', this._date, formatDateLabel(this._date), 'Date', (v) => (this._date = v))}
+            </div>`
           : html`
-              <label class="dt-field">
+              <div class="dt-field">
                 <span class="dt-cap">Starts</span>
-                <input
-                  type="datetime-local"
-                  class="tin"
-                  .value=${this._start}
-                  aria-label="Start date and time"
-                  @input=${(e: Event) => (this._start = (e.target as HTMLInputElement).value)}
-                />
-              </label>
-              <label class="dt-field">
+                <div class="when-row">
+                  ${this._picker('date', startDate, formatDateLabel(startDate), 'Start date', (v) =>
+                    this._setStartDate(v),
+                  )}
+                  ${this._picker('time', startTime, startTime, 'Start time', (v) => this._setStartTime(v))}
+                </div>
+              </div>
+              <div class="dt-field">
                 <span class="dt-cap">Ends</span>
-                <input
-                  type="datetime-local"
-                  class="tin"
-                  .value=${this._end}
-                  aria-label="End date and time"
-                  @input=${(e: Event) => (this._end = (e.target as HTMLInputElement).value)}
-                />
-              </label>
+                <div class="when-row">
+                  ${this._picker('date', endDate, formatDateLabel(endDate), 'End date', (v) => this._setEndDate(v))}
+                  ${this._picker('time', endTime, endTime, 'End time', (v) => this._setEndTime(v))}
+                </div>
+              </div>
             `
       }
+    `;
+  }
+
+  /** A formatted-label tile over a transparent native picker (see `.pick` CSS). */
+  private _picker(kind: PickKind, value: string, label: string, ariaLabel: string, onChange: (v: string) => void) {
+    const icon = kind === 'date' ? 'mdi:calendar-outline' : 'mdi:clock-outline';
+    return html`
+      <div class="pick ${kind}">
+        <ha-icon class="pick-ic" icon=${icon}></ha-icon>
+        <span class="pick-val" aria-hidden="true">${label}</span>
+        <input
+          class="pick-native"
+          type=${kind}
+          .value=${value}
+          aria-label=${ariaLabel}
+          @click=${this._showPicker}
+          @input=${(e: Event) => onChange((e.target as HTMLInputElement).value)}
+        />
+      </div>
     `;
   }
 
@@ -598,6 +694,16 @@ export class CalendarWeekViewAddDialog extends LitElement {
       <div class="scope-note"><ha-icon icon="mdi:repeat"></ha-icon>This event repeats — apply changes to</div>
       <div class="seg">${opt('this', 'This')}${opt('future', 'Following')}${opt('all', 'All')}</div>
     `;
+  }
+
+  /** Open the native picker on tap; falls back to plain focus where unsupported. */
+  private _showPicker(e: Event): void {
+    const el = e.currentTarget as HTMLInputElement & { showPicker?: () => void };
+    try {
+      el.showPicker?.();
+    } catch {
+      /* Some webviews reject showPicker(); focusing still opens the control. */
+    }
   }
 
   /** Switch all-day/timed; seed timed values from the date when they are missing. */
@@ -612,10 +718,47 @@ export class CalendarWeekViewAddDialog extends LitElement {
     }
   }
 
+  private _setStartDate(v: string): void {
+    this._start = `${v}T${this._start.slice(11, 16)}`;
+    this._nudgeEnd();
+  }
+
+  private _setStartTime(v: string): void {
+    this._start = `${this._start.slice(0, 10)}T${v}`;
+    this._nudgeEnd();
+  }
+
+  private _setEndDate(v: string): void {
+    this._end = `${v}T${this._end.slice(11, 16)}`;
+  }
+
+  private _setEndTime(v: string): void {
+    this._end = `${this._end.slice(0, 10)}T${v}`;
+  }
+
+  /** After a start edit, keep the end at least an hour past it. */
+  private _nudgeEnd(): void {
+    this._end = nudgedEnd(this._start, this._end, this._zone());
+  }
+
   private _selectCalendar(c: CalendarConfig): void {
     this._entity = c.entity;
     this._calendarName = c.name ?? c.entity;
     this._color = c.color ?? '';
+  }
+
+  private _onNameInput(e: Event): void {
+    this._title = (e.target as HTMLInputElement).value;
+    if (this._title.trim()) this._nameMissing = false;
+  }
+
+  private _onNameBlur(): void {
+    this._nameMissing = this._title.trim() === '';
+  }
+
+  /** Land the caret in the name field once the dialog has finished opening. */
+  private _onOpened(): void {
+    (this.renderRoot.querySelector('.band-title') as HTMLInputElement | null)?.focus();
   }
 
   private _zone(): string {
@@ -644,6 +787,7 @@ export class CalendarWeekViewAddDialog extends LitElement {
     const err = draftError(draft, this._zone());
     if (err) {
       this._error = err;
+      this._nameMissing = this._title.trim() === '';
       return;
     }
     try {
