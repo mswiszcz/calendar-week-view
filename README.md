@@ -252,6 +252,13 @@ Click any event to open its overview. When the event's calendar supports it
 **this and following events**, or **all events**, matching Home Assistant's own
 calendar. Use the floating **+** button (enable `addEvents`) to create events.
 
+Add and edit share one dialog, styled to match the event overview: a
+calendar-colour header shows the name and the event's schedule as you fill it in.
+Enter a **name**, pick a **calendar** (a colour chip when adding; fixed when
+editing), choose **All day** or a **timed** event with independent **start** and
+**end** date-times (so a timed event can cross midnight or span several days), and
+optionally a **location** and **notes** — all of which are saved to the calendar.
+
 ### Reserved (not yet implemented)
 
 These keys are accepted by the config schema but currently have no effect:
@@ -261,7 +268,7 @@ per-calendar `filterText` / `icon`.
 
 ```bash
 pnpm install
-pnpm test        # vitest — pure week/weather logic
+pnpm test        # vitest — pure week/weather/event-payload logic
 pnpm typecheck   # tsc --noEmit
 pnpm lint        # oxlint
 pnpm build       # esbuild → dist/calendar-week-view.js
