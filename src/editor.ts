@@ -68,7 +68,6 @@ const TODAY_SCHEMA = [
 
 const ADVANCED_SCHEMA = [
   { name: 'compact', selector: { boolean: {} } },
-  { name: 'height', selector: { text: {} } },
   { name: 'combineSimilarEvents', selector: { boolean: {} } },
   {
     name: 'updateInterval',
@@ -86,7 +85,6 @@ const LABELS: Record<string, string> = {
   orientation: 'Layout orientation',
   startHour: 'Start hour',
   visibleDays: 'Visible days',
-  height: 'Minimum height',
   hideWeekend: 'Hide weekend',
   lockToday: 'Lock to today (no navigation)',
   highlightToday: 'Background',
@@ -119,8 +117,6 @@ const HELPERS: Record<string, string> = {
     'Days shown at once: strip columns when horizontal, and the number of days listed from today when vertical.',
   compact:
     'Tighter layout: shorter clock and min-height; in the vertical agenda, a halved header gap and an edge-to-edge day list.',
-  height:
-    'The card never shrinks below this but still grows to fill its container, e.g. 520px. Ignored in vertical agenda, which sizes to its content.',
   timeFormat: 'Luxon tokens for event start/end times, e.g. HH:mm or h:mm a.',
   headerSuptext:
     'Small line above the day number. Literal text plus {luxonToken} groups, e.g. Week {W} or {cccc}. Default {yyyy · LLLL · cccc} (agenda) / {ccc} (calendar).',
