@@ -146,6 +146,8 @@ export interface DayColumn {
   isPast: boolean;
   allDayEvents: WeekEvent[];
   timedEvents: WeekEvent[];
+  /** Hour-grid layout precomputed once at build time so renders/ticks don't recompute it. */
+  positioned: PositionedEvent[];
 }
 
 /**

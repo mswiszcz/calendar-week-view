@@ -56,6 +56,11 @@ describe('pickUpcoming', () => {
     const far = ev('Far', '2026-08-24T09:00:00', '2026-08-24T10:00:00');
     expect(pickUpcoming(now, [far])?.summary).toBe('Far');
   });
+
+  test('surfaces a cross-midnight timed event as the next event', () => {
+    const late = ev('Late', '2026-08-19T23:00:00', '2026-08-20T01:00:00');
+    expect(pickUpcoming(now, [late])?.summary).toBe('Late');
+  });
 });
 
 describe('formatCountdown', () => {
@@ -147,9 +152,16 @@ describe('eventStatus', () => {
     expect(s.headline).toBe('Yesterday');
   });
 
-  test('when a multi-day timed event labels it multi-day', () => {
-    const s = eventStatus(now, ev('x', '2026-08-19T22:00:00', '2026-08-21T02:00:00'));
+  test('when a multi-day all-day event labels it multi-day', () => {
+    const s = eventStatus(now, allDay('x', '2026-08-19', '2026-08-22'));
     expect(s.detail).toBe('multi-day event');
+  });
+
+  test('a cross-midnight timed event counts down to its start, not "now"', () => {
+    // Starts tonight at 22:00; at 10:00 it must read upcoming, not "happening now".
+    const s = eventStatus(now, ev('x', '2026-08-19T22:00:00', '2026-08-20T02:00:00'));
+    expect(s.phase).toBe('upcoming');
+    expect(s.detail).toBe('until it starts');
   });
 });
 

@@ -27,7 +27,6 @@ import {
   formatCountdown,
   formatEventDuration,
   lastVisibleIndex,
-  layoutDayEvents,
   lockedDays,
   normalizeEvent,
   pickUpcoming,
@@ -123,8 +122,23 @@ export class CalendarWeekViewCard extends LitElement {
     if (!config.calendars || config.calendars.length === 0) {
       throw new Error('calendar-week-view: at least one calendar is required');
     }
+    const interval = config.updateInterval ?? 60;
+    if (!Number.isFinite(interval) || interval < 1) {
+      throw new Error('calendar-week-view: updateInterval must be a number of seconds ≥ 1');
+    }
+    const days = config.visibleDays ?? 3;
+    if (!Number.isFinite(days) || days < 1) {
+      throw new Error('calendar-week-view: visibleDays must be a number ≥ 1');
+    }
+    const prevWeather = this._config?.weather?.entity;
     this._config = { weekStartsOn: 'monday', visibleDays: 3, updateInterval: 60, ...config };
     this._hiddenCalendars = new Set((config.calendars ?? []).filter((c) => c.initiallyHidden).map((c) => c.entity));
+    // A changed weather entity must drop the stale subscription so the next fetch resubscribes.
+    if (this._config.weather?.entity !== prevWeather) {
+      this._weatherUnsub?.();
+      this._weatherUnsub = undefined;
+      this._forecast = new Map();
+    }
   }
 
   getCardSize(): number {
@@ -211,8 +225,8 @@ export class CalendarWeekViewCard extends LitElement {
     await Promise.all(
       cfg.calendars.map(async (cal) => {
         if (this._hiddenCalendars.has(cal.entity)) return;
-        const filter = cal.filter ? new RegExp(cal.filter) : null;
         try {
+          const filter = cal.filter ? new RegExp(cal.filter) : null;
           const url =
             `calendars/${cal.entity}?start=${encodeURIComponent(start.toISO() ?? '')}` +
             `&end=${encodeURIComponent(end.toISO() ?? '')}`;
@@ -255,10 +269,17 @@ export class CalendarWeekViewCard extends LitElement {
         : windowDays(
             computeWeekStart(now, cfg.weekStartsOn ?? 'monday', this._windowOffset),
             WINDOW_WEEKS,
-            dayCountFor(cfg.hideWeekend ?? false),
+            cfg.hideWeekend ?? false,
           );
       const start = days[0];
-      const end = days[days.length - 1].plus({ days: 1 });
+      let end = days[days.length - 1].plus({ days: 1 });
+      // A static span is only a few days; widen its single fetch to cover the
+      // "next event" lookahead so _refreshUpcoming reuses these events instead of
+      // issuing a second N-calendar round-trip every cycle.
+      if (this._isStaticSpan() && cfg.showNextEvent !== false) {
+        const horizon = now.plus({ days: 14 });
+        if (horizon > end) end = horizon;
+      }
       const { events, errors } = await this._fetchRange(start, end);
       if (!this.isConnected) return;
       this._error = errors.join('\n');
@@ -294,10 +315,10 @@ export class CalendarWeekViewCard extends LitElement {
   private _refreshUpcoming(windowEvents: WeekEvent[]): void {
     if (this._config.showNextEvent === false) return;
     const now = this._now();
-    // The rendered window carries enough lookahead only in the seamless view; a
-    // static span is just a few days, so fall through to the agenda fetch —
-    // otherwise the next event past that span would never surface.
-    if (!this._isStaticSpan() && this._columns.some((c) => c.isToday)) {
+    // The static-span fetch is widened to the lookahead horizon (see _fetchAndBuild),
+    // and the seamless window already carries lookahead when today is visible — reuse
+    // those events. Only a seamless window scrolled away from today needs its own fetch.
+    if (this._isStaticSpan() || this._columns.some((c) => c.isToday)) {
       this._upcoming = pickUpcoming(now, windowEvents);
       return;
     }
@@ -1032,7 +1053,7 @@ export class CalendarWeekViewCard extends LitElement {
           ${Array.from(
             { length: 24 },
             (_unused, h) =>
-              html`<div class="hour" style="top:${h * HOUR_H}px">${this._fmt(base.plus({ hours: h }), fmt)}</div>`,
+              html`<div class="hour" style="top:${h * HOUR_H}px">${this._fmt(base.set({ hour: h }), fmt)}</div>`,
           )}
         </div>
       </div>
@@ -1045,7 +1066,7 @@ export class CalendarWeekViewCard extends LitElement {
    * merging. Hovering a clipped block pops it to full column width (see styles).
    */
   private _renderGrid(col: DayColumn) {
-    const blocks = layoutDayEvents(col.timedEvents).map((p) => {
+    const blocks = col.positioned.map((p) => {
       const top = (p.startMin / 60) * HOUR_H + 1;
       const height = Math.max(MIN_EVENT_H, ((p.endMin - p.startMin) / 60) * HOUR_H) - 2;
       const width = 100 / p.cols;
@@ -1300,14 +1321,19 @@ export class CalendarWeekViewCard extends LitElement {
   }
 
   private _renderDeleteConfirm(e: WeekEvent) {
-    const note = e.recurring
+    // Per-occurrence scoping needs a recurrence_id to encode "this"/"following";
+    // a recurring event without one can only be deleted as a whole series.
+    const scoped = e.recurring && !!e.recurrenceId;
+    const note = scoped
       ? 'This event repeats — choose which occurrences to delete.'
-      : 'Delete this event? This cannot be undone.';
+      : e.recurring
+        ? 'This event repeats — deleting removes the whole series.'
+        : 'Delete this event? This cannot be undone.';
     return html`
       <div class="gate-confirm">
         <div class="gate-confirm-note">${note}</div>
         ${
-          e.recurring
+          scoped
             ? html`<div class="gate-scope col">
                 <button class="gate-scope-btn" @click=${() => this._deleteEvent(e, 'this')}>This event</button>
                 <button class="gate-scope-btn" @click=${() => this._deleteEvent(e, 'future')}>
