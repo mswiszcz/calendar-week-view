@@ -21,7 +21,7 @@ UI color, and set every option from the **visual editor** or in YAML.
   </tr>
   <tr>
     <td align="center"><img width="280" src="docs/screenshots/04-add-edit-event.png" alt="Add / edit event dialog"><br><sub><b>Add / edit event</b><br>start / end datetimes + notes</sub></td>
-    <td align="center"><img width="280" src="docs/screenshots/05-event-details.png" alt="Event details popup"><br><sub><b>Event details</b><br>gate-time countdown + weather</sub></td>
+    <td align="center"><img height="180" src="docs/screenshots/05-event-details-upcoming.png" alt="Event details — upcoming event with countdown">&nbsp;<img height="180" src="docs/screenshots/05-event-details-current.png" alt="Event details — event in progress with live progress"><br><sub><b>Event details</b><br>upcoming countdown &amp; live progress</sub></td>
     <td align="center"><img width="280" src="docs/screenshots/06-calendar-view.png" alt="Calendar (time-grid) view"><br><sub><b>Calendar view</b><br>hourly time-grid + now-line</sub></td>
   </tr>
 </table>
