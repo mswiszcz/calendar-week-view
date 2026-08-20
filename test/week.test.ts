@@ -38,17 +38,28 @@ describe('computeWeekStart', () => {
 
 describe('windowDays', () => {
   const firstWeek = DateTime.fromISO('2026-08-17'); // Mon
-  test('spans consecutive weeks with 7-day weeks', () => {
-    const days = windowDays(firstWeek, 3, 7);
+  const firstSun = DateTime.fromISO('2026-08-16'); // Sun
+  test('spans consecutive weeks with full 7-day weeks', () => {
+    const days = windowDays(firstWeek, 3, false);
     expect(days).toHaveLength(21);
     expect(days[0].toISODate()).toBe('2026-08-17');
     expect(days[20].toISODate()).toBe('2026-09-06');
   });
-  test('skips weekends with 5-day weeks', () => {
-    const days = windowDays(firstWeek, 2, 5);
+  test('skips weekends when hiding them', () => {
+    const days = windowDays(firstWeek, 2, true);
     expect(days).toHaveLength(10);
     expect(days[4].toISODate()).toBe('2026-08-21'); // Fri
     expect(days[5].toISODate()).toBe('2026-08-24'); // next Mon (Sat/Sun skipped)
+  });
+  test('with a Sunday start still hides Sat/Sun, keeps Friday', () => {
+    const days = windowDays(firstSun, 1, true);
+    expect(days.map((d) => d.toISODate())).toEqual([
+      '2026-08-17',
+      '2026-08-18',
+      '2026-08-19',
+      '2026-08-20',
+      '2026-08-21',
+    ]);
   });
 });
 
@@ -304,6 +315,20 @@ describe('buildDayColumns', () => {
     expect(cols[3].allDayEvents[0].continuesLeft).toBe(true);
     expect(cols[3].allDayEvents[0].continuesRight).toBe(false);
     expect(cols[4].allDayEvents).toHaveLength(0);
+  });
+
+  test('puts a cross-midnight timed event on the hour grid, not the all-day band', () => {
+    const night = normalizeEvent(
+      { summary: 'Night shift', start: { dateTime: '2026-08-19T22:00:00' }, end: { dateTime: '2026-08-20T02:00:00' } },
+      { entity: 'calendar.work', color: '#3b82f6' },
+      false,
+    );
+    const cols = buildDayColumns({ days, now: nowRef, events: [night] });
+    expect(cols[2].date.toISODate()).toBe('2026-08-19'); // Wed
+    expect(cols[2].allDayEvents).toHaveLength(0);
+    expect(cols[2].timedEvents).toHaveLength(1);
+    expect(cols[3].timedEvents).toHaveLength(1); // Thu tail
+    expect(cols[3].allDayEvents).toHaveLength(0);
   });
 
   test('marks today and past days and sorts timed events', () => {

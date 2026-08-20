@@ -468,8 +468,10 @@ export class CalendarWeekViewAddDialog extends LitElement {
   @state() private _color = '';
   @state() private _allDay = true;
   @state() private _date = '';
+  @state() private _endDate = '';
   @state() private _start = '';
   @state() private _end = '';
+  @state() private _submitting = false;
   @state() private _location = '';
   @state() private _description = '';
   @state() private _error = '';
@@ -488,8 +490,10 @@ export class CalendarWeekViewAddDialog extends LitElement {
     this._calendarName = cal?.name ?? this._entity;
     this._color = cal?.color ?? '';
     this._date = this.defaultDate.toISODate() ?? '';
+    this._endDate = this._date;
     this._start = this.defaultDate.set({ hour: 9, minute: 0 }).toFormat(LOCAL_DT);
     this._end = this.defaultDate.set({ hour: 10, minute: 0 }).toFormat(LOCAL_DT);
+    this._submitting = false;
     this._title = '';
     this._location = '';
     this._description = '';
@@ -511,13 +515,19 @@ export class CalendarWeekViewAddDialog extends LitElement {
     this._description = e.description ?? '';
     this._allDay = e.allDay;
     this._date = e.originalStart.toISODate() ?? '';
+    // HA all-day ends are exclusive; the inclusive last day the user edits is one day back.
+    this._endDate = e.allDay
+      ? (e.originalEnd.minus({ days: 1 }).toISODate() ?? this._date)
+      : (e.originalEnd.toISODate() ?? this._date);
     this._start = e.originalStart.toFormat(LOCAL_DT);
     this._end = e.originalEnd.toFormat(LOCAL_DT);
     this._recurring = e.recurring;
-    this._scope = 'this';
+    // Per-occurrence scope needs a recurrence_id; without one, only a whole-series edit is possible.
+    this._scope = e.recurrenceId ? 'this' : 'all';
     this._rrule = e.rrule;
     this._uid = e.uid ?? '';
     this._recurrenceId = e.recurrenceId;
+    this._submitting = false;
     this._error = '';
     this._nameMissing = false;
     this._open = true;
@@ -528,13 +538,7 @@ export class CalendarWeekViewAddDialog extends LitElement {
     const heading = this._mode === 'edit' ? 'Edit event' : 'Add event';
     const showCal = this.calendars.length > 1;
     return html`
-      <ha-dialog
-        open
-        hideActions
-        aria-label=${heading}
-        @opened=${this._onOpened}
-        @closed=${() => (this._open = false)}
-      >
+      <ha-dialog open hideActions aria-label=${heading} @opened=${this._onOpened} @closed=${() => (this._open = false)}>
         <div class="gate" style="--c:${this._color || 'var(--primary-color)'}">
           <div class="band">
             <input
@@ -580,14 +584,14 @@ export class CalendarWeekViewAddDialog extends LitElement {
               aria-label="Description"
               @input=${(e: Event) => (this._description = (e.target as HTMLTextAreaElement).value)}
             ></textarea>
-            ${this._mode === 'edit' && this._recurring ? this._renderScope() : ''}
+            ${this._mode === 'edit' && this._recurring && this._recurrenceId ? this._renderScope() : ''}
           </div>
           <div class="acts">
             <button class="btn ghost" @click=${() => (this._open = false)}>
               <ha-icon icon="mdi:close"></ha-icon>Cancel
             </button>
             <span class="spacer"></span>
-            <button class="btn primary" ?disabled=${this._title.trim() === ''} @click=${this._save}>
+            <button class="btn primary" ?disabled=${this._title.trim() === '' || this._submitting} @click=${this._save}>
               <ha-icon icon=${this._mode === 'edit' ? 'mdi:check' : 'mdi:plus'}></ha-icon>
               ${this._mode === 'edit' ? 'Save' : 'Add'}
             </button>
@@ -642,9 +646,24 @@ export class CalendarWeekViewAddDialog extends LitElement {
       </div>
       ${
         this._allDay
-          ? html`<div class="dt-field">
-              ${this._picker('date', this._date, formatDateLabel(this._date), 'Date', (v) => (this._date = v))}
-            </div>`
+          ? html`
+              <div class="dt-field">
+                <span class="dt-cap">Starts</span>
+                ${this._picker('date', this._date, formatDateLabel(this._date), 'Start date', (v) =>
+                  this._setAllDayStart(v),
+                )}
+              </div>
+              <div class="dt-field">
+                <span class="dt-cap">Ends</span>
+                ${this._picker(
+                  'date',
+                  this._endDate,
+                  formatDateLabel(this._endDate),
+                  'End date',
+                  (v) => (this._endDate = v),
+                )}
+              </div>
+            `
           : html`
               <div class="dt-field">
                 <span class="dt-cap">Starts</span>
@@ -690,9 +709,12 @@ export class CalendarWeekViewAddDialog extends LitElement {
     const opt = (v: RecurrenceScope, label: string) => html`
       <button class=${this._scope === v ? 'on' : ''} @click=${() => (this._scope = v)}>${label}</button>
     `;
+    // No "All" for edits: this occurrence carries no master DTSTART, so a whole-series
+    // update would reanchor the series to this occurrence's date. "This" and "Following"
+    // both target via recurrence_id and are safe. (Delete keeps "All" — see the card.)
     return html`
       <div class="scope-note"><ha-icon icon="mdi:repeat"></ha-icon>This event repeats — apply changes to</div>
-      <div class="seg">${opt('this', 'This')}${opt('future', 'Following')}${opt('all', 'All')}</div>
+      <div class="seg">${opt('this', 'This')}${opt('future', 'Following')}</div>
     `;
   }
 
@@ -706,16 +728,34 @@ export class CalendarWeekViewAddDialog extends LitElement {
     }
   }
 
-  /** Switch all-day/timed; seed timed values from the date when they are missing. */
+  /** Switch all-day/timed, carrying the dates across so the day never silently reverts. */
   private _setAllDay(allDay: boolean): void {
     if (allDay === this._allDay) return;
     this._allDay = allDay;
     this._error = '';
-    if (!allDay && !this._start) {
-      const base = DateTime.fromISO(this._date);
-      this._start = base.set({ hour: 9, minute: 0 }).toFormat(LOCAL_DT);
-      this._end = base.set({ hour: 10, minute: 0 }).toFormat(LOCAL_DT);
+    if (allDay) {
+      this._date = this._start.slice(0, 10) || this._date;
+      this._endDate = this._end.slice(0, 10) || this._date;
+      if (this._endDate < this._date) this._endDate = this._date;
+    } else {
+      const startTime = this._start.slice(11, 16) || '09:00';
+      const endTime = this._end.slice(11, 16) || '10:00';
+      this._start = `${this._date}T${startTime}`;
+      // A multi-day all-day span's inclusive last day maps to the next day's midnight so
+      // the final day stays covered; a single day keeps the plain start/end times.
+      const rawEnd =
+        this._endDate !== this._date
+          ? `${DateTime.fromISO(this._endDate).plus({ days: 1 }).toISODate() ?? this._endDate}T00:00`
+          : `${this._date}T${endTime}`;
+      this._end = nudgedEnd(this._start, rawEnd, this._zone());
     }
+  }
+
+  /** Move the all-day start, dragging the end with it so it never lands before the start. */
+  private _setAllDayStart(v: string): void {
+    const singleDay = this._endDate === this._date;
+    this._date = v;
+    if (singleDay || this._endDate < v) this._endDate = v;
   }
 
   private _setStartDate(v: string): void {
@@ -771,6 +811,7 @@ export class CalendarWeekViewAddDialog extends LitElement {
       entity: this._entity,
       allDay: this._allDay,
       date: this._date,
+      endDate: this._endDate,
       start: this._start,
       end: this._end,
       location: this._location,
@@ -783,6 +824,7 @@ export class CalendarWeekViewAddDialog extends LitElement {
   }
 
   private async _save(): Promise<void> {
+    if (this._submitting) return;
     const draft = this._draft();
     const err = draftError(draft, this._zone());
     if (err) {
@@ -790,6 +832,7 @@ export class CalendarWeekViewAddDialog extends LitElement {
       this._nameMissing = this._title.trim() === '';
       return;
     }
+    this._submitting = true;
     try {
       if (this._mode === 'edit') await this._update(draft);
       else await this._create(draft);
@@ -798,6 +841,8 @@ export class CalendarWeekViewAddDialog extends LitElement {
     } catch (e) {
       const verb = this._mode === 'edit' ? 'update' : 'create';
       this._error = `Could not ${verb} event: ${(e as Error).message}`;
+    } finally {
+      this._submitting = false;
     }
   }
 

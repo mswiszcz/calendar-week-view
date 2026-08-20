@@ -18,6 +18,7 @@ function draft(overrides: Partial<EventDraft> = {}): EventDraft {
     entity: 'calendar.work',
     allDay: false,
     date: '2026-08-22',
+    endDate: '2026-08-22',
     start: '2026-08-22T09:00',
     end: '2026-08-22T09:30',
     location: '',
@@ -39,6 +40,12 @@ describe('buildCreateData', () => {
     expect(d.start_date).toBe('2026-08-22');
     expect(d.end_date).toBe('2026-08-23');
     expect('start_date_time' in d).toBe(false);
+  });
+
+  test('when all-day spans days emits exclusive end past the last day', () => {
+    const d = buildCreateData(draft({ allDay: true, date: '2026-08-19', endDate: '2026-08-21' }), ZONE);
+    expect(d.start_date).toBe('2026-08-19');
+    expect(d.end_date).toBe('2026-08-22');
   });
 
   test('with location and notes includes them', () => {
@@ -71,6 +78,12 @@ describe('buildUpdateEvent', () => {
     expect(e.dtend).toBe('2026-08-23');
   });
 
+  test('when all-day spans days keeps the full range', () => {
+    const e = buildUpdateEvent(draft({ allDay: true, date: '2026-08-19', endDate: '2026-08-21' }), ZONE);
+    expect(e.dtstart).toBe('2026-08-19');
+    expect(e.dtend).toBe('2026-08-22');
+  });
+
   test('when notes blank keeps empty keys to clear', () => {
     const e = buildUpdateEvent(draft(), ZONE);
     expect(e.location).toBe('');
@@ -83,6 +96,11 @@ describe('buildUpdateEvent', () => {
 describe('formatWhenLine', () => {
   test('when all-day names the day', () => {
     expect(formatWhenLine(draft({ allDay: true }), ZONE, 'HH:mm')).toBe('Sat 22 Aug · All day');
+  });
+
+  test('when all-day spans days shows the range', () => {
+    const line = formatWhenLine(draft({ allDay: true, date: '2026-08-19', endDate: '2026-08-21' }), ZONE, 'HH:mm');
+    expect(line).toBe('Wed 19 Aug → Fri 21 Aug · All day');
   });
 
   test('when same day shows one date', () => {
@@ -152,5 +170,19 @@ describe('draftError', () => {
 
   test('when all-day valid ignores times', () => {
     expect(draftError(draft({ allDay: true, start: '', end: '' }), ZONE)).toBeNull();
+  });
+
+  test('when all-day end precedes start reports it', () => {
+    expect(draftError(draft({ allDay: true, date: '2026-08-22', endDate: '2026-08-20' }), ZONE)).toBe(
+      'End must be on or after the start',
+    );
+  });
+
+  test('when timed start is empty reports it', () => {
+    expect(draftError(draft({ start: '' }), ZONE)).toBe('Pick a start date and time');
+  });
+
+  test('when all-day start date is empty reports it', () => {
+    expect(draftError(draft({ allDay: true, date: '' }), ZONE)).toBe('Pick a start date');
   });
 });

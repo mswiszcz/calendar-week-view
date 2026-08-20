@@ -11,6 +11,8 @@ export interface EventDraft {
   entity: string;
   allDay: boolean;
   date: string;
+  /** All-day inclusive last day (what the user sees); equals `date` for a single day. */
+  endDate: string;
   start: string;
   end: string;
   location: string;
@@ -42,7 +44,7 @@ export function buildCreateData(d: EventDraft, zone: string): Record<string, str
   if (description) data.description = description;
   if (d.allDay) {
     data.start_date = d.date;
-    data.end_date = nextDay(d.date, zone);
+    data.end_date = nextDay(d.endDate, zone);
   } else {
     data.start_date_time = timed(d.start, zone).toISO() ?? '';
     data.end_date_time = timed(d.end, zone).toISO() ?? '';
@@ -63,7 +65,7 @@ export function buildUpdateEvent(d: EventDraft, zone: string): Record<string, st
   };
   if (d.allDay) {
     event.dtstart = d.date;
-    event.dtend = nextDay(d.date, zone);
+    event.dtend = nextDay(d.endDate, zone);
   } else {
     event.dtstart = timed(d.start, zone).toISO() ?? '';
     event.dtend = timed(d.end, zone).toISO() ?? '';
@@ -75,7 +77,12 @@ export function buildUpdateEvent(d: EventDraft, zone: string): Record<string, st
 export function formatWhenLine(d: EventDraft, zone: string, timeFormat: string, locale?: string): string {
   const fmt = (x: DateTime, f: string): string => (locale ? x.setLocale(locale) : x).toFormat(f);
   if (d.allDay) {
-    return `${fmt(DateTime.fromISO(d.date, { zone }), WHEN_FMT)} · All day`;
+    const s = DateTime.fromISO(d.date, { zone });
+    const e = DateTime.fromISO(d.endDate, { zone });
+    if (e.isValid && e.startOf('day') > s.startOf('day')) {
+      return `${fmt(s, WHEN_FMT)} → ${fmt(e, WHEN_FMT)} · All day`;
+    }
+    return `${fmt(s, WHEN_FMT)} · All day`;
   }
   const start = timed(d.start, zone);
   const end = timed(d.end, zone);
@@ -107,8 +114,18 @@ export function nudgedEnd(start: string, end: string, zone: string): string {
 /** Null when the draft is saveable, else a user-facing reason it is not. */
 export function draftError(d: EventDraft, zone: string): string | null {
   if (!d.summary.trim()) return 'Add a name';
-  if (!d.allDay && timed(d.end, zone) <= timed(d.start, zone)) {
-    return 'End must be after the start';
+  if (d.allDay) {
+    const s = DateTime.fromISO(d.date, { zone });
+    const e = DateTime.fromISO(d.endDate, { zone });
+    if (!s.isValid) return 'Pick a start date';
+    if (!e.isValid) return 'Pick an end date';
+    if (e.startOf('day') < s.startOf('day')) return 'End must be on or after the start';
+    return null;
   }
+  const start = timed(d.start, zone);
+  const end = timed(d.end, zone);
+  if (!start.isValid) return 'Pick a start date and time';
+  if (!end.isValid) return 'Pick an end date and time';
+  if (end <= start) return 'End must be after the start';
   return null;
 }

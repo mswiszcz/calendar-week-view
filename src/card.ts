@@ -27,7 +27,6 @@ import {
   formatCountdown,
   formatEventDuration,
   lastVisibleIndex,
-  layoutDayEvents,
   lockedDays,
   normalizeEvent,
   pickUpcoming,
@@ -85,6 +84,7 @@ export class CalendarWeekViewCard extends LitElement {
   @state() private _detailsEvent: WeekEvent | null = null;
   @state() private _confirmingDelete = false;
   @state() private _deleteError = '';
+  @state() private _deleting = false;
   @state() private _tick = 0;
   @state() private _upcoming: WeekEvent | null = null;
   @state() private _todayVisible = true;
@@ -105,6 +105,13 @@ export class CalendarWeekViewCard extends LitElement {
   private _timer?: number;
   private _weatherUnsub?: () => void;
   private _weatherPending = false;
+  /** Bumped whenever config or calendar visibility changes, so an in-flight fetch built
+   * against the old state discards its result instead of applying it under the new one. */
+  private _rev = 0;
+  /** Local ISO date the day columns were built for, so a tick can rebuild them at midnight. */
+  private _builtDay = '';
+  /** Guards the detached "next event" lookahead so slow ones don't pile up per refresh. */
+  private _upcomingLoading = false;
 
   static getStubConfig(): Partial<CardConfig> {
     return {
@@ -123,8 +130,31 @@ export class CalendarWeekViewCard extends LitElement {
     if (!config.calendars || config.calendars.length === 0) {
       throw new Error('calendar-week-view: at least one calendar is required');
     }
+    const interval = config.updateInterval ?? 60;
+    if (!Number.isFinite(interval) || interval < 1 || interval > 3600) {
+      throw new Error('calendar-week-view: updateInterval must be a number of seconds between 1 and 3600');
+    }
+    const days = config.visibleDays ?? 3;
+    if (!Number.isFinite(days) || days < 1 || days > 31) {
+      throw new Error('calendar-week-view: visibleDays must be a number between 1 and 31');
+    }
+    const prevWeather = this._config?.weather?.entity;
     this._config = { weekStartsOn: 'monday', visibleDays: 3, updateInterval: 60, ...config };
     this._hiddenCalendars = new Set((config.calendars ?? []).filter((c) => c.initiallyHidden).map((c) => c.entity));
+    // A changed weather entity must drop the stale subscription so the next fetch resubscribes.
+    if (this._config.weather?.entity !== prevWeather) {
+      this._weatherUnsub?.();
+      this._weatherUnsub = undefined;
+      this._forecast = new Map();
+    }
+    // Live config edits reuse the same element; rebuild so the change takes effect at
+    // once instead of waiting for the next poll, and invalidate any in-flight fetch.
+    // Reschedule the tick too, in case the edit just turned a static header live.
+    this._rev++;
+    if (this._hass && this.isConnected) {
+      this._scheduleTick();
+      void this._fetchAndBuild();
+    }
   }
 
   getCardSize(): number {
@@ -192,6 +222,11 @@ export class CalendarWeekViewCard extends LitElement {
     this._clockTimer = window.setTimeout(
       () => {
         this._tick++;
+        // Roll the columns over at local midnight so the "today" highlight and now-line
+        // move to the new day instead of lagging on yesterday until the next poll.
+        if (this._builtDay && !this._loading && this._now().toISODate() !== this._builtDay) {
+          void this._fetchAndBuild();
+        }
         this._scheduleTick();
       },
       Math.max(250, ms),
@@ -206,27 +241,30 @@ export class CalendarWeekViewCard extends LitElement {
   private async _fetchRange(start: DateTime, end: DateTime): Promise<{ events: WeekEvent[]; errors: string[] }> {
     const cfg = this._config;
     const zone = this._hass!.config?.time_zone ?? 'local';
-    const events: WeekEvent[] = [];
     const errors: string[] = [];
-    await Promise.all(
-      cfg.calendars.map(async (cal) => {
-        if (this._hiddenCalendars.has(cal.entity)) return;
-        const filter = cal.filter ? new RegExp(cal.filter) : null;
+    // One array per calendar, flattened in config order below, so `combineSimilarEvents`
+    // dedupe keeps a deterministic winner instead of whichever request resolved first.
+    const perCalendar = await Promise.all(
+      cfg.calendars.map(async (cal): Promise<WeekEvent[]> => {
+        if (this._hiddenCalendars.has(cal.entity)) return [];
+        const out: WeekEvent[] = [];
         try {
+          const filter = cal.filter ? new RegExp(cal.filter) : null;
           const url =
             `calendars/${cal.entity}?start=${encodeURIComponent(start.toISO() ?? '')}` +
             `&end=${encodeURIComponent(end.toISO() ?? '')}`;
           const raw = (await this._hass!.callApi('GET', url)) as CalendarEventInput[];
           for (const item of raw) {
             if (filter && filter.test(item.summary ?? '')) continue;
-            events.push(normalizeEvent(item, cal, cfg.combineSimilarEvents ?? false, zone));
+            out.push(normalizeEvent(item, cal, cfg.combineSimilarEvents ?? false, zone));
           }
         } catch (e) {
           errors.push(`${cal.name ?? cal.entity}: ${(e as Error).message}`);
         }
+        return out;
       }),
     );
-    return { events, errors };
+    return { events: perCalendar.flat(), errors };
   }
 
   private _dedupe(events: WeekEvent[]): WeekEvent[] {
@@ -247,6 +285,7 @@ export class CalendarWeekViewCard extends LitElement {
       return;
     }
     this._loading = true;
+    const rev = this._rev;
     try {
       const cfg = this._config;
       const now = this._now();
@@ -255,15 +294,24 @@ export class CalendarWeekViewCard extends LitElement {
         : windowDays(
             computeWeekStart(now, cfg.weekStartsOn ?? 'monday', this._windowOffset),
             WINDOW_WEEKS,
-            dayCountFor(cfg.hideWeekend ?? false),
+            cfg.hideWeekend ?? false,
           );
       const start = days[0];
-      const end = days[days.length - 1].plus({ days: 1 });
+      let end = days[days.length - 1].plus({ days: 1 });
+      // A static span is only a few days; widen its single fetch to cover the
+      // "next event" lookahead so _refreshUpcoming reuses these events instead of
+      // issuing a second N-calendar round-trip every cycle.
+      if (this._isStaticSpan() && cfg.showNextEvent !== false) {
+        const horizon = now.plus({ days: 14 });
+        if (horizon > end) end = horizon;
+      }
       const { events, errors } = await this._fetchRange(start, end);
-      if (!this.isConnected) return;
+      // Drop the result if the card disconnected or the config/visibility changed mid-fetch.
+      if (!this.isConnected || rev !== this._rev) return;
       this._error = errors.join('\n');
       const finalEvents = this._dedupe(events);
       this._columns = buildDayColumns({ days, now, events: finalEvents });
+      this._builtDay = now.toISODate() ?? '';
       this._refreshUpcoming(finalEvents);
       if (cfg.weather) void this._subscribeWeather();
     } finally {
@@ -294,18 +342,26 @@ export class CalendarWeekViewCard extends LitElement {
   private _refreshUpcoming(windowEvents: WeekEvent[]): void {
     if (this._config.showNextEvent === false) return;
     const now = this._now();
-    // The rendered window carries enough lookahead only in the seamless view; a
-    // static span is just a few days, so fall through to the agenda fetch —
-    // otherwise the next event past that span would never surface.
-    if (!this._isStaticSpan() && this._columns.some((c) => c.isToday)) {
+    // The static-span fetch is widened to the lookahead horizon (see _fetchAndBuild),
+    // and the seamless window already carries lookahead when today is visible — reuse
+    // those events. Only a seamless window scrolled away from today needs its own fetch.
+    if (this._isStaticSpan() || this._columns.some((c) => c.isToday)) {
       this._upcoming = pickUpcoming(now, windowEvents);
       return;
     }
+    if (this._upcomingLoading) return;
+    this._upcomingLoading = true;
+    const rev = this._rev;
     void (async () => {
-      const start = now.startOf('day');
-      const { events } = await this._fetchRange(start, start.plus({ days: 14 }));
-      if (!this.isConnected) return;
-      this._upcoming = pickUpcoming(now, this._dedupe(events));
+      try {
+        const start = now.startOf('day');
+        const { events } = await this._fetchRange(start, start.plus({ days: 14 }));
+        // Ignore a lookahead that finished after a newer config/visibility change.
+        if (!this.isConnected || rev !== this._rev) return;
+        this._upcoming = pickUpcoming(now, this._dedupe(events));
+      } finally {
+        this._upcomingLoading = false;
+      }
     })();
   }
 
@@ -313,9 +369,10 @@ export class CalendarWeekViewCard extends LitElement {
   private async _subscribeWeather(): Promise<void> {
     if (!this._config.weather || this._weatherUnsub || this._weatherPending) return;
     this._weatherPending = true;
+    const entity = this._config.weather.entity;
     try {
       const zone = this._hass!.config?.time_zone ?? 'local';
-      this._weatherUnsub = await this._hass!.connection.subscribeMessage<{
+      const unsub = await this._hass!.connection.subscribeMessage<{
         forecast?: HourlyForecast[];
       }>(
         (msg) => {
@@ -324,9 +381,16 @@ export class CalendarWeekViewCard extends LitElement {
         {
           type: 'weather/subscribe_forecast',
           forecast_type: 'hourly',
-          entity_id: this._config.weather.entity,
+          entity_id: entity,
         },
       );
+      // Disconnected or the entity changed while awaiting — drop this subscription so it
+      // neither leaks on a detached element nor pins the forecast to a stale entity.
+      if (!this.isConnected || this._config.weather?.entity !== entity) {
+        unsub();
+        return;
+      }
+      this._weatherUnsub = unsub;
     } catch (e) {
       this._weatherError = `Weather: ${(e as Error).message}`;
     } finally {
@@ -589,6 +653,7 @@ export class CalendarWeekViewCard extends LitElement {
     if (next.has(entity)) next.delete(entity);
     else next.add(entity);
     this._hiddenCalendars = next;
+    this._rev++;
     void this._fetchAndBuild();
   }
 
@@ -648,7 +713,7 @@ export class CalendarWeekViewCard extends LitElement {
 
   /** Delete an event via the HA websocket, scoping recurring instances per the user's choice. */
   private async _deleteEvent(e: WeekEvent, scope: RecurrenceScope): Promise<void> {
-    if (!e.uid) return;
+    if (!e.uid || this._deleting) return;
     const msg: {
       type: string;
       entity_id: string;
@@ -664,12 +729,15 @@ export class CalendarWeekViewCard extends LitElement {
       msg.recurrence_id = e.recurrenceId;
       if (scope === 'future') msg.recurrence_range = 'THISANDFUTURE';
     }
+    this._deleting = true;
     try {
       await this._hass!.connection.sendMessagePromise(msg);
       this._closeDetails();
       void this._fetchAndBuild();
     } catch (err) {
       this._deleteError = `Could not delete event: ${(err as Error).message}`;
+    } finally {
+      this._deleting = false;
     }
   }
 
@@ -714,7 +782,15 @@ export class CalendarWeekViewCard extends LitElement {
       return;
     }
     const idx = this._columns.findIndex((c) => c.isToday);
-    if (idx < 0) return;
+    if (idx < 0) {
+      // Today is not a rendered column (e.g. a hidden weekend) — there is nothing to
+      // land on, so clear the jump state instead of leaving _jumping wedged, which
+      // would otherwise disable scroll recentering for the rest of the session.
+      this._scrollToToday = false;
+      this._jumpSmooth = false;
+      this._jumping = false;
+      return;
+    }
     const behavior: ScrollBehavior = this._jumpSmooth && !this._reducedMotion() ? 'smooth' : 'auto';
     this._axis().scrollTo(strip, this._columnScroll(strip, idx), behavior);
     if (this._isCalendar()) strip.scrollTop = this._startHour() * HOUR_H;
@@ -1032,7 +1108,7 @@ export class CalendarWeekViewCard extends LitElement {
           ${Array.from(
             { length: 24 },
             (_unused, h) =>
-              html`<div class="hour" style="top:${h * HOUR_H}px">${this._fmt(base.plus({ hours: h }), fmt)}</div>`,
+              html`<div class="hour" style="top:${h * HOUR_H}px">${this._fmt(base.set({ hour: h }), fmt)}</div>`,
           )}
         </div>
       </div>
@@ -1045,7 +1121,7 @@ export class CalendarWeekViewCard extends LitElement {
    * merging. Hovering a clipped block pops it to full column width (see styles).
    */
   private _renderGrid(col: DayColumn) {
-    const blocks = layoutDayEvents(col.timedEvents).map((p) => {
+    const blocks = col.positioned.map((p) => {
       const top = (p.startMin / 60) * HOUR_H + 1;
       const height = Math.max(MIN_EVENT_H, ((p.endMin - p.startMin) / 60) * HOUR_H) - 2;
       const width = 100 / p.cols;
@@ -1300,26 +1376,57 @@ export class CalendarWeekViewCard extends LitElement {
   }
 
   private _renderDeleteConfirm(e: WeekEvent) {
-    const note = e.recurring
+    // Per-occurrence scoping needs a recurrence_id to encode "this"/"following";
+    // a recurring event without one can only be deleted as a whole series.
+    const scoped = e.recurring && !!e.recurrenceId;
+    const note = scoped
       ? 'This event repeats — choose which occurrences to delete.'
-      : 'Delete this event? This cannot be undone.';
+      : e.recurring
+        ? 'This event repeats — deleting removes the whole series.'
+        : 'Delete this event? This cannot be undone.';
     return html`
       <div class="gate-confirm">
         <div class="gate-confirm-note">${note}</div>
         ${
-          e.recurring
+          scoped
             ? html`<div class="gate-scope col">
-                <button class="gate-scope-btn" @click=${() => this._deleteEvent(e, 'this')}>This event</button>
-                <button class="gate-scope-btn" @click=${() => this._deleteEvent(e, 'future')}>
+                <button class="gate-scope-btn" ?disabled=${this._deleting} @click=${() => this._deleteEvent(e, 'this')}>
+                  This event
+                </button>
+                <button
+                  class="gate-scope-btn"
+                  ?disabled=${this._deleting}
+                  @click=${() => this._deleteEvent(e, 'future')}
+                >
                   This &amp; following
                 </button>
-                <button class="gate-scope-btn danger" @click=${() => this._deleteEvent(e, 'all')}>All events</button>
-                <button class="gate-btn ghost" @click=${() => (this._confirmingDelete = false)}>Cancel</button>
+                <button
+                  class="gate-scope-btn danger"
+                  ?disabled=${this._deleting}
+                  @click=${() => this._deleteEvent(e, 'all')}
+                >
+                  All events
+                </button>
+                <button
+                  class="gate-btn ghost"
+                  ?disabled=${this._deleting}
+                  @click=${() => (this._confirmingDelete = false)}
+                >
+                  Cancel
+                </button>
               </div>`
             : html`<div class="gate-scope">
-                <button class="gate-btn ghost" @click=${() => (this._confirmingDelete = false)}>Cancel</button>
+                <button
+                  class="gate-btn ghost"
+                  ?disabled=${this._deleting}
+                  @click=${() => (this._confirmingDelete = false)}
+                >
+                  Cancel
+                </button>
                 <span class="gate-spacer"></span>
-                <button class="gate-btn danger" @click=${() => this._deleteEvent(e, 'all')}>Delete</button>
+                <button class="gate-btn danger" ?disabled=${this._deleting} @click=${() => this._deleteEvent(e, 'all')}>
+                  Delete
+                </button>
               </div>`
         }
       </div>

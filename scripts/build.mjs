@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { build, context } from 'esbuild';
+
+const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 const watch = process.argv.includes('--watch');
 const options = {
@@ -11,6 +14,7 @@ const options = {
   sourcemap: watch,
   legalComments: 'none',
   loader: { '.svg': 'text' },
+  define: { __CWV_VERSION__: JSON.stringify(pkg.version) },
 };
 
 if (watch) {

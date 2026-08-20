@@ -102,7 +102,7 @@ export function weatherSamplesForEvent(
   map: Map<string, ForecastSlot>,
 ): WeatherSample[] {
   const targets: { kind: WeatherSampleKind; time: DateTime }[] = [];
-  if (event.allDay || event.multiDay) {
+  if (event.allDay) {
     if (event.originalEnd <= now) return [];
     const anchor = DateTime.max(now.startOf('day'), event.originalStart.startOf('day'));
     const noon = anchor.plus({ hours: 12 });

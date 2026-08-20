@@ -47,14 +47,16 @@ export function weekDays(weekStart: DateTime, dayCount: number): DateTime[] {
 
 /**
  * Days for a multi-week carousel window: `weeks` consecutive weeks starting at
- * `firstWeekStart`, each contributing its first `dayCount` days. With `dayCount`
- * of 5 this yields a continuous weekday strip (weekends skipped between weeks).
+ * `firstWeekStart`. Each week contributes all seven days, or only its five
+ * weekdays when `hideWeekend` — so weekend hiding filters Saturday and Sunday
+ * regardless of which weekday the window starts on.
  */
-export function windowDays(firstWeekStart: DateTime, weeks: number, dayCount: number): DateTime[] {
+export function windowDays(firstWeekStart: DateTime, weeks: number, hideWeekend: boolean): DateTime[] {
   const days: DateTime[] = [];
   for (let w = 0; w < weeks; w++) {
-    for (let d = 0; d < dayCount; d++) {
-      days.push(firstWeekStart.plus({ days: w * 7 + d }).startOf('day'));
+    for (let d = 0; d < 7; d++) {
+      const day = firstWeekStart.plus({ days: w * 7 + d }).startOf('day');
+      if (!hideWeekend || (day.weekday !== 6 && day.weekday !== 7)) days.push(day);
     }
   }
   return days;
@@ -66,7 +68,7 @@ export function windowDays(firstWeekStart: DateTime, weeks: number, dayCount: nu
  * lock lands on the next weekday rather than a blank column.
  */
 export function lockedDays(today: DateTime, count: number, hideWeekend: boolean): DateTime[] {
-  const want = Math.max(1, Math.round(count));
+  const want = Math.min(31, Math.max(1, Math.round(count)));
   const days: DateTime[] = [];
   let d = today.startOf('day');
   while (days.length < want) {
@@ -167,9 +169,11 @@ function byStart(a: WeekEvent, b: WeekEvent): number {
  * midnight (as `buildDayColumns` produces) ends at `MINUTES_PER_DAY`.
  */
 function eventMinutes(event: WeekEvent): { startMin: number; endMin: number } {
-  const dayStart = event.start.startOf('day');
-  const startMin = Math.min(MINUTES_PER_DAY, Math.max(0, event.start.diff(dayStart).as('minutes')));
-  const rawEnd = event.end.diff(dayStart).as('minutes');
+  // Position by wall-clock minutes, not elapsed minutes from midnight, so a DST
+  // transition day (23h or 25h) still places events at their real clock time.
+  const startMin = event.start.hour * 60 + event.start.minute;
+  const sameDay = event.end.hasSame(event.start, 'day');
+  const rawEnd = sameDay ? event.end.hour * 60 + event.end.minute : MINUTES_PER_DAY;
   const endMin = Math.min(MINUTES_PER_DAY, Math.max(rawEnd, startMin + 1));
   return { startMin, endMin };
 }
@@ -223,12 +227,12 @@ export function layoutDayEvents(events: WeekEvent[]): PositionedEvent[] {
  * today — the "what's next" once the day is done.
  */
 export function pickUpcoming(now: DateTime, events: WeekEvent[]): WeekEvent | null {
-  const timedFuture = events.filter((e) => !e.allDay && !e.multiDay && e.originalStart > now);
+  const timedFuture = events.filter((e) => !e.allDay && e.originalStart > now);
   timedFuture.sort(byStart);
   const noMoreToday = !timedFuture.some((e) => e.originalStart.hasSame(now, 'day'));
   if (noMoreToday) {
     const tomorrow = now.plus({ days: 1 }).startOf('day');
-    const tomorrowAllDay = events.filter((e) => (e.allDay || e.multiDay) && e.originalStart.hasSame(tomorrow, 'day'));
+    const tomorrowAllDay = events.filter((e) => e.allDay && e.originalStart.hasSame(tomorrow, 'day'));
     tomorrowAllDay.sort(byStart);
     if (tomorrowAllDay[0]) return tomorrowAllDay[0];
   }
@@ -237,7 +241,7 @@ export function pickUpcoming(now: DateTime, events: WeekEvent[]): WeekEvent | nu
 
 /** Compact "time until start" label, e.g. `in 30m`, `in 2h 15m`, `in 3d`, or `Tomorrow`. */
 export function formatCountdown(now: DateTime, ev: WeekEvent): string {
-  if (ev.allDay || ev.multiDay) {
+  if (ev.allDay) {
     const days = Math.round(ev.originalStart.startOf('day').diff(now.startOf('day'), 'days').days);
     if (days <= 0) return 'Today';
     if (days === 1) return 'Tomorrow';
@@ -282,11 +286,11 @@ export function formatEventDuration(ev: WeekEvent): string {
  * day-relative headline (Today / Tomorrow / In 3d / Yesterday / 2d ago).
  */
 export function eventStatus(now: DateTime, ev: WeekEvent): EventStatus {
-  if (ev.allDay || ev.multiDay) {
+  if (ev.allDay) {
     const startDay = ev.originalStart.startOf('day');
     const endDay = ev.originalEnd.startOf('day');
     const today = now.startOf('day');
-    const detail = ev.allDay ? 'all-day event' : 'multi-day event';
+    const detail = ev.multiDay ? 'multi-day event' : 'all-day event';
     if (today >= startDay && today < endDay) {
       return { phase: 'now', headline: 'Today', detail, progress: null };
     }
@@ -350,7 +354,9 @@ export function buildDayColumns(args: { days: DateTime[]; now: DateTime; events:
         continuesLeft: ev.originalStart < dayStart,
         continuesRight: ev.originalEnd > dayEnd,
       };
-      if (ev.allDay || ev.multiDay) allDayEvents.push(piece);
+      // Only genuinely all-day events belong in the band; a timed event that
+      // merely crosses midnight is clamped per day and rendered on the hour grid.
+      if (ev.allDay) allDayEvents.push(piece);
       else timedEvents.push(piece);
     }
     timedEvents.sort((a, b) => a.start.toMillis() - b.start.toMillis());
@@ -360,6 +366,7 @@ export function buildDayColumns(args: { days: DateTime[]; now: DateTime; events:
       isPast: dayStart < today,
       allDayEvents,
       timedEvents,
+      positioned: layoutDayEvents(timedEvents),
     };
   });
 }
