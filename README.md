@@ -1,15 +1,30 @@
 # Calendar Week View
 
-A Home Assistant Lovelace card that renders the **current week** as a horizontal
-strip of day-columns: a highlighted **today**, per-event **start–end times** and
-**hourly weather**, all-day / multi-day pills with continuation chevrons, a
-calendar legend, floating carousel arrows, and a floating **quick-add** button.
-A status header carries a bold **live clock**, today's **date**, and the **next
-upcoming event** with a live countdown; a **return-to-today** glyph appears
-only when today has scrolled off-screen and points the way back.
+**Calendar Week View** is a Home Assistant Lovelace card that shows one or more
+calendars, focused on the current week. Pick an **agenda** view that lists each
+day's events — as a scrolling horizontal day strip or a vertical stack of
+full-width days — or a **calendar** view that spans timed events over an hourly
+grid with a live now-line. Events carry **start–end times**, all-day and
+multi-day pills, and per-event **hourly weather**; a status header adds a
+**live clock**, the date, and the **next upcoming event** with a countdown.
+Click an event to view, **edit**, or **delete** it (with this / following / all
+scopes for recurring events), and use the floating **+** to add one — both
+through a single dialog for the name, calendar, all-day or timed start/end,
+location, and notes. Add your own **header and floating buttons**, override any
+UI color, and set every option from the **visual editor** or in YAML.
 
-![Light](docs/superpowers/specs/assets/comp-light.png)
-![Dark](docs/superpowers/specs/assets/comp-dark.png)
+<table>
+  <tr>
+    <td width="33%" align="center"><img width="280" src="docs/screenshots/01-agenda-horizontal.png" alt="Agenda view — horizontal, 5 days"><br><sub><b>Agenda · horizontal</b><br>scrolling day strip</sub></td>
+    <td width="33%" align="center"><img width="280" src="docs/screenshots/02-agenda-vertical.png" alt="Agenda view — vertical"><br><sub><b>Agenda · vertical</b><br>days stacked full-width</sub></td>
+    <td width="33%" align="center"><img width="280" src="docs/screenshots/03-agenda-one-day.png" alt="Agenda view — single day"><br><sub><b>Agenda · single day</b><br><code>lockToday</code>, today only</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img width="280" src="docs/screenshots/04-add-edit-event.png" alt="Add / edit event dialog"><br><sub><b>Add / edit event</b><br>start / end datetimes + notes</sub></td>
+    <td align="center"><img width="280" src="docs/screenshots/05-event-details.png" alt="Event details popup"><br><sub><b>Event details</b><br>gate-time countdown + weather</sub></td>
+    <td align="center"><img width="280" src="docs/screenshots/06-calendar-view.png" alt="Calendar (time-grid) view"><br><sub><b>Calendar view</b><br>hourly time-grid + now-line</sub></td>
+  </tr>
+</table>
 
 Derived from [week-planner-card](https://github.com/FamousWolf/week-planner-card)
 by Rudy Gnodde (MIT) — the calendar data layer is reused; the UI, navigation, and
@@ -71,22 +86,24 @@ calendars:
 |---|---|---|---|
 | `type` | string | — | `custom:calendar-week-view` (required). |
 | `calendars` | list | — | Required, at least one. See [Calendar options](#calendar-options). |
+| `title` | string | — | Optional heading rendered above the card. **YAML only** — not in the visual editor. |
 | `viewMode` | `agenda` \| `calendar` | `agenda` | Agenda lists events per day; calendar spans them over an hour grid. |
 | `orientation` | `horizontal` \| `vertical` | `horizontal` | Agenda layout axis. Horizontal is the scrolling day strip; vertical stacks days full-width, each at its full height, and grows the card to fit (the dashboard scrolls, not the card). Ignored in calendar view. |
 | `startHour` | number | `8` | Calendar view: the hour (0–23) the grid initially scrolls to. |
 | `visibleDays` | number | `3` | Horizontal: columns visible at once; the strip scrolls to reveal the rest. Vertical and `lockToday`: the number of days shown from today. |
 | `hideWeekend` | boolean | `false` | Show Monday–Friday only (5 columns). |
+| `weekStartsOn` | `monday` \| `sunday` | `monday` | Which day the carousel window starts on. **YAML only** — not in the visual editor. |
 | `lockToday` | boolean | `false` | Pin the view to today: navigation off, showing `visibleDays` days from today (`1` → today only). |
 | `highlightToday` | boolean | `true` | Tint today's column background. |
 | `todayBorder` | boolean | `true` | Draw today's accent outline. |
 | `todayText` | boolean | `true` | Accent today's date (color + larger number). Off makes it read like any other day. |
 | `height` | string | `520px` | **Minimum** height. The card fills its container (full height in a panel view) and never shrinks below this. |
-| `showNavigation` | boolean | `true` | Show the floating carousel arrows and the **return-to-today** glyph. The strip pages by one view and rolls into adjacent weeks; swipe still works. Forced off by `lockToday`. |
+| `showNavigation` | boolean | `true` | Show the floating carousel arrows and the **return-to-today** glyph. The strip pages by one view and rolls into adjacent weeks; swipe still works. Forced off by `lockToday` and by the vertical agenda (both are static, non-paging spans). |
 | `showLegend` | boolean | `true` | Show the calendar legend chips. |
 | `legendToggle` | boolean | `true` | Click a legend chip to hide/show that calendar's events. |
 | `showClock` | boolean | `true` | Show the live clock and date in the status header. |
 | `showNextEvent` | boolean | `true` | Show the next upcoming event with a live countdown in the status header. |
-| `addEvents` | boolean | `false` | Show the floating quick-add button (needs ≥1 writable calendar). It writes to all writable configured calendars. |
+| `addEvents` | boolean | `false` | Show the floating quick-add (**+**) button (needs ≥1 writable calendar). New events are written to the single calendar you pick in the dialog (defaulting to the first writable one). |
 | `headerButtons` | array | — | Custom buttons at the top-right of the header. See [Custom buttons](#custom-buttons). |
 | `floatingButtons` | array | — | Custom buttons beside the floating **+** at the bottom-right. See [Custom buttons](#custom-buttons). |
 | `weather` | object | — | Optional hourly weather. See [Weather options](#weather-options). |
@@ -127,8 +144,9 @@ calendars:
 | `showTemperature` | boolean | `true` | Show the temperature next to the icon. |
 | `roundTemperature` | boolean | `true` | Round the temperature to a whole number. |
 
-On the grid, weather is shown per **timed** event, at the event's start hour,
-using native `mdi:weather-*` icons (no bundled image assets).
+Weather is shown per **timed** event at the event's start hour — in both the
+agenda's timed rows and the calendar grid — using native `mdi:weather-*` icons
+(no bundled image assets). All-day and past events get no glyph.
 
 Opening an event adds a **weather strip** to its details popup, drawn from the
 same hourly forecast:
@@ -173,9 +191,11 @@ colors:
 
 - **View mode** (`viewMode`): `agenda` lists each day's events; `calendar` spans timed
   events over an hour grid that scrolls to `startHour` and shows a live now-line. The grid
-  is a bounded viewport — day heads and the all-day row stay pinned while the hours scroll.
-  When a day carries several all-day events, an expand control in the header grows the
-  all-day row to show them all (up to 250px, then it scrolls) and collapses back.
+  is a bounded viewport — day heads and the all-day band stay pinned while the hours scroll.
+  When a visible day carries any all-day events, an expand control in the header grows the
+  all-day band to show them all (up to 250px, then it scrolls) and collapses back.
+  Overlapping timed events split into side-by-side lanes; very short events (≤30 min)
+  render on a single line, and hovering a clipped block pops it out to full width.
 - **Orientation** (`orientation`, agenda only): `horizontal` is the scrolling day strip;
   `vertical` stacks `visibleDays` days from today full-width, each at the full height its
   events need with no inner scroll, and grows the card to fit the list — the dashboard
@@ -184,6 +204,9 @@ colors:
 - **Lock to today** (`lockToday`): pins the card to today, turns navigation off, and shows
   `visibleDays` days starting at today (`1` → today only). The header, weather, and
   quick-add still work; the carousel window and paging are simply not built.
+
+Past days are dimmed, and every entrance and scroll animation respects
+`prefers-reduced-motion` (falling back to instant).
 
 ## Status header
 
@@ -246,11 +269,17 @@ floatingButtons:
 
 ## Managing events
 
-Click any event to open its overview. When the event's calendar supports it
-(`local_calendar`, CalDAV, most Google setups), the overview offers **Edit** and
-**Delete**. Recurring events ask whether the change applies to **this event**,
-**this and following events**, or **all events**, matching Home Assistant's own
-calendar. Use the floating **+** button (enable `addEvents`) to create events.
+Click any event to open its overview. It leads with a live **countdown** over a
+calendar-colour band — the time until the event starts, a **progress bar** while
+it is happening, or how long ago it ended — followed by the schedule (date, time,
+and duration), the location (with a **Maps** link), notes, the weather strip, and
+a **Repeats** badge on recurring events.
+
+When the event's calendar supports it (`local_calendar`, CalDAV, most Google
+setups), the overview also offers **Edit** and **Delete**. Recurring events ask
+whether the change applies to **this event**, **this and following events**, or
+**all events**, matching Home Assistant's own calendar. Use the floating **+**
+button (enable `addEvents`) to create events.
 
 Add and edit share one dialog, styled to match the event overview: a
 calendar-colour header shows the name and the event's schedule as you fill it in.
@@ -261,8 +290,8 @@ optionally a **location** and **notes** — all of which are saved to the calend
 
 ### Reserved (not yet implemented)
 
-These keys are accepted by the config schema but currently have no effect:
-per-calendar `filterText` / `icon`.
+These per-calendar keys are declared in the config type but currently have no
+effect: `filterText` / `icon`.
 
 ## Development
 

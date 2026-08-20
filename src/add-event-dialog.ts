@@ -12,8 +12,8 @@ const LOCAL_DT = "yyyy-LL-dd'T'HH:mm";
 export class CalendarWeekViewAddDialog extends LitElement {
   static styles = css`
     :host {
-      --neutral-tile: color-mix(in srgb, var(--primary-text-color, #1a1c1e) 3%, var(--card-background-color, #fff));
-      --hover-tint: color-mix(in srgb, var(--primary-text-color, #1a1c1e) 6%, transparent);
+      --neutral-tile: color-mix(in srgb, var(--primary-text-color, #1a1c1e) 5%, var(--card-background-color, #fff));
+      --hover-tint: color-mix(in srgb, var(--primary-text-color, #1a1c1e) 8%, transparent);
     }
     ha-dialog {
       --mdc-dialog-min-width: 400px;
@@ -239,10 +239,16 @@ export class CalendarWeekViewAddDialog extends LitElement {
     .seg button ha-icon {
       --mdc-icon-size: 16px;
     }
+    /* Selected segment reads as selected in both themes: an accent tint plus an
+       accent ring, rather than a card-coloured fill that goes darker-than-track
+       on a dark theme and looks sunken. */
     .seg button.on {
       color: var(--primary-text-color);
-      background: var(--card-background-color);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
+      background: color-mix(in srgb, var(--primary-color) 18%, var(--card-background-color));
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 40%, transparent);
+    }
+    .seg button.on ha-icon {
+      color: var(--primary-color);
     }
 
     /* calendar colour chips (add) / fixed calendar (edit) */
