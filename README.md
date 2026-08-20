@@ -13,16 +13,17 @@ through a single dialog for the name, calendar, all-day or timed start/end,
 location, and notes. Add your own **header and floating buttons**, override any
 UI color, and set every option from the **visual editor** or in YAML.
 
-<table>
+<table align="center">
   <tr>
-    <td width="33%" align="center"><img width="280" src="docs/screenshots/01-agenda-horizontal.png" alt="Agenda view — horizontal, 5 days"><br><sub><b>Agenda · horizontal</b><br>scrolling day strip</sub></td>
-    <td width="33%" align="center"><img width="280" src="docs/screenshots/02-agenda-vertical.png" alt="Agenda view — vertical"><br><sub><b>Agenda · vertical</b><br>days stacked full-width</sub></td>
-    <td width="33%" align="center"><img width="280" src="docs/screenshots/03-agenda-one-day.png" alt="Agenda view — single day"><br><sub><b>Agenda · single day</b><br><code>lockToday</code>, today only</sub></td>
+    <td align="center"><img width="400" src="docs/screenshots/06-calendar-view.png" alt="Calendar (time-grid) view"><br><sub><b>Calendar view</b><br>hourly time-grid + now-line</sub></td>
+    <td align="center"><img width="400" src="docs/screenshots/01-agenda-horizontal.png" alt="Agenda view — horizontal, 5 days"><br><sub><b>Agenda · horizontal</b><br>scrolling day strip</sub></td>
   </tr>
   <tr>
-    <td align="center"><img width="280" src="docs/screenshots/04-add-edit-event.png" alt="Add / edit event dialog"><br><sub><b>Add / edit event</b><br>start / end datetimes + notes</sub></td>
-    <td align="center"><img height="180" src="docs/screenshots/05-event-details-upcoming.png" alt="Event details — upcoming event with countdown">&nbsp;<img height="180" src="docs/screenshots/05-event-details-current.png" alt="Event details — event in progress with live progress"><br><sub><b>Event details</b><br>upcoming countdown &amp; live progress</sub></td>
-    <td align="center"><img width="280" src="docs/screenshots/06-calendar-view.png" alt="Calendar (time-grid) view"><br><sub><b>Calendar view</b><br>hourly time-grid + now-line</sub></td>
+    <td align="center"><img width="400" src="docs/screenshots/02-agenda-vertical.png" alt="Agenda view — vertical"><br><sub><b>Agenda · vertical</b><br>days stacked full-width</sub></td>
+    <td align="center"><img width="400" src="docs/screenshots/03-agenda-one-day.png" alt="Agenda view — single day"><br><sub><b>Agenda · single day</b><br><code>lockToday</code>, today only</sub></td>
+  <tr>
+    <td align="center"><img width="400" src="docs/screenshots/04-add-edit-event.png" alt="Add / edit event dialog"><br><sub><b>Add / edit event</b><br>start / end datetimes + notes</sub></td>
+    <td align="center"><img height="300" src="docs/screenshots/05-event-details-upcoming.png" alt="Event details — upcoming event with countdown">&nbsp;<img height="180" src="docs/screenshots/05-event-details-current.png" alt="Event details — event in progress with live progress"><br><sub><b>Event details</b><br>upcoming countdown &amp; live progress</sub></td>
   </tr>
 </table>
 
