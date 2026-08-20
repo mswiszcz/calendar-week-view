@@ -317,6 +317,20 @@ describe('buildDayColumns', () => {
     expect(cols[4].allDayEvents).toHaveLength(0);
   });
 
+  test('puts a cross-midnight timed event on the hour grid, not the all-day band', () => {
+    const night = normalizeEvent(
+      { summary: 'Night shift', start: { dateTime: '2026-08-19T22:00:00' }, end: { dateTime: '2026-08-20T02:00:00' } },
+      { entity: 'calendar.work', color: '#3b82f6' },
+      false,
+    );
+    const cols = buildDayColumns({ days, now: nowRef, events: [night] });
+    expect(cols[2].date.toISODate()).toBe('2026-08-19'); // Wed
+    expect(cols[2].allDayEvents).toHaveLength(0);
+    expect(cols[2].timedEvents).toHaveLength(1);
+    expect(cols[3].timedEvents).toHaveLength(1); // Thu tail
+    expect(cols[3].allDayEvents).toHaveLength(0);
+  });
+
   test('marks today and past days and sorts timed events', () => {
     const late = normalizeEvent(
       {

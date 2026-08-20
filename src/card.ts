@@ -84,6 +84,7 @@ export class CalendarWeekViewCard extends LitElement {
   @state() private _detailsEvent: WeekEvent | null = null;
   @state() private _confirmingDelete = false;
   @state() private _deleteError = '';
+  @state() private _deleting = false;
   @state() private _tick = 0;
   @state() private _upcoming: WeekEvent | null = null;
   @state() private _todayVisible = true;
@@ -104,6 +105,9 @@ export class CalendarWeekViewCard extends LitElement {
   private _timer?: number;
   private _weatherUnsub?: () => void;
   private _weatherPending = false;
+  /** Bumped whenever config or calendar visibility changes, so an in-flight fetch built
+   * against the old state discards its result instead of applying it under the new one. */
+  private _rev = 0;
 
   static getStubConfig(): Partial<CardConfig> {
     return {
@@ -123,12 +127,12 @@ export class CalendarWeekViewCard extends LitElement {
       throw new Error('calendar-week-view: at least one calendar is required');
     }
     const interval = config.updateInterval ?? 60;
-    if (!Number.isFinite(interval) || interval < 1) {
-      throw new Error('calendar-week-view: updateInterval must be a number of seconds ≥ 1');
+    if (!Number.isFinite(interval) || interval < 1 || interval > 3600) {
+      throw new Error('calendar-week-view: updateInterval must be a number of seconds between 1 and 3600');
     }
     const days = config.visibleDays ?? 3;
-    if (!Number.isFinite(days) || days < 1) {
-      throw new Error('calendar-week-view: visibleDays must be a number ≥ 1');
+    if (!Number.isFinite(days) || days < 1 || days > 31) {
+      throw new Error('calendar-week-view: visibleDays must be a number between 1 and 31');
     }
     const prevWeather = this._config?.weather?.entity;
     this._config = { weekStartsOn: 'monday', visibleDays: 3, updateInterval: 60, ...config };
@@ -139,6 +143,10 @@ export class CalendarWeekViewCard extends LitElement {
       this._weatherUnsub = undefined;
       this._forecast = new Map();
     }
+    // Live config edits reuse the same element; rebuild so the change takes effect at
+    // once instead of waiting for the next poll, and invalidate any in-flight fetch.
+    this._rev++;
+    if (this._hass && this.isConnected) void this._fetchAndBuild();
   }
 
   getCardSize(): number {
@@ -220,11 +228,13 @@ export class CalendarWeekViewCard extends LitElement {
   private async _fetchRange(start: DateTime, end: DateTime): Promise<{ events: WeekEvent[]; errors: string[] }> {
     const cfg = this._config;
     const zone = this._hass!.config?.time_zone ?? 'local';
-    const events: WeekEvent[] = [];
     const errors: string[] = [];
-    await Promise.all(
-      cfg.calendars.map(async (cal) => {
-        if (this._hiddenCalendars.has(cal.entity)) return;
+    // One array per calendar, flattened in config order below, so `combineSimilarEvents`
+    // dedupe keeps a deterministic winner instead of whichever request resolved first.
+    const perCalendar = await Promise.all(
+      cfg.calendars.map(async (cal): Promise<WeekEvent[]> => {
+        if (this._hiddenCalendars.has(cal.entity)) return [];
+        const out: WeekEvent[] = [];
         try {
           const filter = cal.filter ? new RegExp(cal.filter) : null;
           const url =
@@ -233,14 +243,15 @@ export class CalendarWeekViewCard extends LitElement {
           const raw = (await this._hass!.callApi('GET', url)) as CalendarEventInput[];
           for (const item of raw) {
             if (filter && filter.test(item.summary ?? '')) continue;
-            events.push(normalizeEvent(item, cal, cfg.combineSimilarEvents ?? false, zone));
+            out.push(normalizeEvent(item, cal, cfg.combineSimilarEvents ?? false, zone));
           }
         } catch (e) {
           errors.push(`${cal.name ?? cal.entity}: ${(e as Error).message}`);
         }
+        return out;
       }),
     );
-    return { events, errors };
+    return { events: perCalendar.flat(), errors };
   }
 
   private _dedupe(events: WeekEvent[]): WeekEvent[] {
@@ -261,6 +272,7 @@ export class CalendarWeekViewCard extends LitElement {
       return;
     }
     this._loading = true;
+    const rev = this._rev;
     try {
       const cfg = this._config;
       const now = this._now();
@@ -281,7 +293,8 @@ export class CalendarWeekViewCard extends LitElement {
         if (horizon > end) end = horizon;
       }
       const { events, errors } = await this._fetchRange(start, end);
-      if (!this.isConnected) return;
+      // Drop the result if the card disconnected or the config/visibility changed mid-fetch.
+      if (!this.isConnected || rev !== this._rev) return;
       this._error = errors.join('\n');
       const finalEvents = this._dedupe(events);
       this._columns = buildDayColumns({ days, now, events: finalEvents });
@@ -322,10 +335,12 @@ export class CalendarWeekViewCard extends LitElement {
       this._upcoming = pickUpcoming(now, windowEvents);
       return;
     }
+    const rev = this._rev;
     void (async () => {
       const start = now.startOf('day');
       const { events } = await this._fetchRange(start, start.plus({ days: 14 }));
-      if (!this.isConnected) return;
+      // Ignore a lookahead that finished after a newer config/visibility change.
+      if (!this.isConnected || rev !== this._rev) return;
       this._upcoming = pickUpcoming(now, this._dedupe(events));
     })();
   }
@@ -334,9 +349,10 @@ export class CalendarWeekViewCard extends LitElement {
   private async _subscribeWeather(): Promise<void> {
     if (!this._config.weather || this._weatherUnsub || this._weatherPending) return;
     this._weatherPending = true;
+    const entity = this._config.weather.entity;
     try {
       const zone = this._hass!.config?.time_zone ?? 'local';
-      this._weatherUnsub = await this._hass!.connection.subscribeMessage<{
+      const unsub = await this._hass!.connection.subscribeMessage<{
         forecast?: HourlyForecast[];
       }>(
         (msg) => {
@@ -345,9 +361,16 @@ export class CalendarWeekViewCard extends LitElement {
         {
           type: 'weather/subscribe_forecast',
           forecast_type: 'hourly',
-          entity_id: this._config.weather.entity,
+          entity_id: entity,
         },
       );
+      // Disconnected or the entity changed while awaiting — drop this subscription so it
+      // neither leaks on a detached element nor pins the forecast to a stale entity.
+      if (!this.isConnected || this._config.weather?.entity !== entity) {
+        unsub();
+        return;
+      }
+      this._weatherUnsub = unsub;
     } catch (e) {
       this._weatherError = `Weather: ${(e as Error).message}`;
     } finally {
@@ -610,6 +633,7 @@ export class CalendarWeekViewCard extends LitElement {
     if (next.has(entity)) next.delete(entity);
     else next.add(entity);
     this._hiddenCalendars = next;
+    this._rev++;
     void this._fetchAndBuild();
   }
 
@@ -669,7 +693,7 @@ export class CalendarWeekViewCard extends LitElement {
 
   /** Delete an event via the HA websocket, scoping recurring instances per the user's choice. */
   private async _deleteEvent(e: WeekEvent, scope: RecurrenceScope): Promise<void> {
-    if (!e.uid) return;
+    if (!e.uid || this._deleting) return;
     const msg: {
       type: string;
       entity_id: string;
@@ -685,12 +709,15 @@ export class CalendarWeekViewCard extends LitElement {
       msg.recurrence_id = e.recurrenceId;
       if (scope === 'future') msg.recurrence_range = 'THISANDFUTURE';
     }
+    this._deleting = true;
     try {
       await this._hass!.connection.sendMessagePromise(msg);
       this._closeDetails();
       void this._fetchAndBuild();
     } catch (err) {
       this._deleteError = `Could not delete event: ${(err as Error).message}`;
+    } finally {
+      this._deleting = false;
     }
   }
 
@@ -1335,17 +1362,43 @@ export class CalendarWeekViewCard extends LitElement {
         ${
           scoped
             ? html`<div class="gate-scope col">
-                <button class="gate-scope-btn" @click=${() => this._deleteEvent(e, 'this')}>This event</button>
-                <button class="gate-scope-btn" @click=${() => this._deleteEvent(e, 'future')}>
+                <button class="gate-scope-btn" ?disabled=${this._deleting} @click=${() => this._deleteEvent(e, 'this')}>
+                  This event
+                </button>
+                <button
+                  class="gate-scope-btn"
+                  ?disabled=${this._deleting}
+                  @click=${() => this._deleteEvent(e, 'future')}
+                >
                   This &amp; following
                 </button>
-                <button class="gate-scope-btn danger" @click=${() => this._deleteEvent(e, 'all')}>All events</button>
-                <button class="gate-btn ghost" @click=${() => (this._confirmingDelete = false)}>Cancel</button>
+                <button
+                  class="gate-scope-btn danger"
+                  ?disabled=${this._deleting}
+                  @click=${() => this._deleteEvent(e, 'all')}
+                >
+                  All events
+                </button>
+                <button
+                  class="gate-btn ghost"
+                  ?disabled=${this._deleting}
+                  @click=${() => (this._confirmingDelete = false)}
+                >
+                  Cancel
+                </button>
               </div>`
             : html`<div class="gate-scope">
-                <button class="gate-btn ghost" @click=${() => (this._confirmingDelete = false)}>Cancel</button>
+                <button
+                  class="gate-btn ghost"
+                  ?disabled=${this._deleting}
+                  @click=${() => (this._confirmingDelete = false)}
+                >
+                  Cancel
+                </button>
                 <span class="gate-spacer"></span>
-                <button class="gate-btn danger" @click=${() => this._deleteEvent(e, 'all')}>Delete</button>
+                <button class="gate-btn danger" ?disabled=${this._deleting} @click=${() => this._deleteEvent(e, 'all')}>
+                  Delete
+                </button>
               </div>`
         }
       </div>

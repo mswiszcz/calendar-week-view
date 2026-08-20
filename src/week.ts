@@ -354,7 +354,9 @@ export function buildDayColumns(args: { days: DateTime[]; now: DateTime; events:
         continuesLeft: ev.originalStart < dayStart,
         continuesRight: ev.originalEnd > dayEnd,
       };
-      if (ev.allDay || ev.multiDay) allDayEvents.push(piece);
+      // Only genuinely all-day events belong in the band; a timed event that
+      // merely crosses midnight is clamped per day and rendered on the hour grid.
+      if (ev.allDay) allDayEvents.push(piece);
       else timedEvents.push(piece);
     }
     timedEvents.sort((a, b) => a.start.toMillis() - b.start.toMillis());

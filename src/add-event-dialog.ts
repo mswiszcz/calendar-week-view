@@ -538,13 +538,7 @@ export class CalendarWeekViewAddDialog extends LitElement {
     const heading = this._mode === 'edit' ? 'Edit event' : 'Add event';
     const showCal = this.calendars.length > 1;
     return html`
-      <ha-dialog
-        open
-        hideActions
-        aria-label=${heading}
-        @opened=${this._onOpened}
-        @closed=${() => (this._open = false)}
-      >
+      <ha-dialog open hideActions aria-label=${heading} @opened=${this._onOpened} @closed=${() => (this._open = false)}>
         <div class="gate" style="--c:${this._color || 'var(--primary-color)'}">
           <div class="band">
             <input
@@ -661,8 +655,12 @@ export class CalendarWeekViewAddDialog extends LitElement {
               </div>
               <div class="dt-field">
                 <span class="dt-cap">Ends</span>
-                ${this._picker('date', this._endDate, formatDateLabel(this._endDate), 'End date', (v) =>
-                  (this._endDate = v),
+                ${this._picker(
+                  'date',
+                  this._endDate,
+                  formatDateLabel(this._endDate),
+                  'End date',
+                  (v) => (this._endDate = v),
                 )}
               </div>
             `
