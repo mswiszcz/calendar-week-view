@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'vitest';
-import { buildCreateData, buildUpdateEvent, draftError, formatWhenLine, type EventDraft } from '@/event-payload';
+import {
+  buildCreateData,
+  buildUpdateEvent,
+  draftError,
+  type EventDraft,
+  formatDateLabel,
+  formatWhenLine,
+  nudgedEnd,
+} from '@/event-payload';
 
 const ZONE = 'utc';
 
@@ -88,6 +96,38 @@ describe('formatWhenLine', () => {
 
   test('with a 12-hour timeFormat honors it', () => {
     expect(formatWhenLine(draft(), ZONE, 'h:mm a')).toBe('Sat 22 Aug · 9:00 AM – 9:30 AM');
+  });
+});
+
+describe('nudgedEnd', () => {
+  test('when end precedes start bumps to start + 1h', () => {
+    expect(nudgedEnd('2026-08-22T10:00', '2026-08-22T09:00', ZONE)).toBe('2026-08-22T11:00');
+  });
+
+  test('when end equals start bumps to start + 1h', () => {
+    expect(nudgedEnd('2026-08-22T10:00', '2026-08-22T10:00', ZONE)).toBe('2026-08-22T11:00');
+  });
+
+  test('when end already after start keeps it', () => {
+    expect(nudgedEnd('2026-08-22T10:00', '2026-08-22T12:30', ZONE)).toBe('2026-08-22T12:30');
+  });
+
+  test('when start jumps past end bumps across days', () => {
+    expect(nudgedEnd('2026-08-23T10:00', '2026-08-22T12:00', ZONE)).toBe('2026-08-23T11:00');
+  });
+});
+
+describe('formatDateLabel', () => {
+  test('formats weekday, day, month, year', () => {
+    expect(formatDateLabel('2026-08-20')).toBe('Thu 20 Aug 2026');
+  });
+
+  test('with a locale localizes', () => {
+    expect(formatDateLabel('2026-08-20', 'fr')).toBe('jeu. 20 août 2026');
+  });
+
+  test('when date empty returns empty', () => {
+    expect(formatDateLabel('')).toBe('');
   });
 });
 

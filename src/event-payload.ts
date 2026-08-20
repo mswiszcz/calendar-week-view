@@ -20,6 +20,9 @@ export interface EventDraft {
 /** Header schedule format: weekday, day, short month — e.g. `Sat 22 Aug`. */
 const WHEN_FMT = 'ccc d LLL';
 
+/** A `datetime-local` wall-time string, `YYYY-MM-DDTHH:mm`. */
+const LOCAL_DT = "yyyy-LL-dd'T'HH:mm";
+
 /** HA's all-day end is exclusive, so the stored end is the day after the last. */
 function nextDay(date: string, zone: string): string {
   return DateTime.fromISO(date, { zone }).plus({ days: 1 }).toISODate() ?? date;
@@ -80,6 +83,25 @@ export function formatWhenLine(d: EventDraft, zone: string, timeFormat: string, 
     return `${fmt(start, WHEN_FMT)} · ${fmt(start, timeFormat)} – ${fmt(end, timeFormat)}`;
   }
   return `${fmt(start, 'd LLL')} ${fmt(start, timeFormat)} → ${fmt(end, 'd LLL')} ${fmt(end, timeFormat)}`;
+}
+
+/** The picker field's date label — matches the header's format family, plus year. */
+export function formatDateLabel(date: string, locale?: string): string {
+  const d = DateTime.fromISO(date);
+  if (!d.isValid) return '';
+  return (locale ? d.setLocale(locale) : d).toFormat(`${WHEN_FMT} yyyy`);
+}
+
+/**
+ * Keep the end after the start: when the end is missing or at/before the new
+ * start, snap it to start + 1 hour. Called after a start edit only.
+ */
+export function nudgedEnd(start: string, end: string, zone: string): string {
+  const s = timed(start, zone);
+  if (!s.isValid) return end;
+  const e = timed(end, zone);
+  if (!e.isValid || e <= s) return s.plus({ hours: 1 }).toFormat(LOCAL_DT);
+  return end;
 }
 
 /** Null when the draft is saveable, else a user-facing reason it is not. */
