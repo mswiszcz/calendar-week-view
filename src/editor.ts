@@ -32,8 +32,13 @@ const GENERAL_SCHEMA = [
   { name: 'showNavigation', selector: { boolean: {} } },
   { name: 'showLegend', selector: { boolean: {} } },
   { name: 'legendToggle', selector: { boolean: {} } },
-  { name: 'addEvents', selector: { boolean: {} } },
+  { name: 'compact', selector: { boolean: {} } },
+  { name: 'combineSimilarEvents', selector: { boolean: {} } },
+  { name: 'locale', selector: { text: {} } },
 ];
+
+/** The built-in quick-add (floating +) toggle, shown with the custom buttons. */
+const BUTTONS_SCHEMA = [{ name: 'addEvents', selector: { boolean: {} } }];
 
 /** Fields that only affect agenda view. */
 const AGENDA_SCHEMA = [
@@ -59,6 +64,9 @@ const HEADER_SCHEMA = [
 /** Fields that only affect calendar view. */
 const CALENDAR_SCHEMA = [{ name: 'startHour', selector: { number: { min: 0, max: 23, mode: 'box' } } }];
 
+/** Formatting for the event day cards. */
+const DAYCARD_SCHEMA = [{ name: 'timeFormat', selector: { text: {} } }];
+
 /** Independent toggles for today's accent treatment. */
 const TODAY_SCHEMA = [
   { name: 'highlightToday', selector: { boolean: {} } },
@@ -67,14 +75,10 @@ const TODAY_SCHEMA = [
 ];
 
 const ADVANCED_SCHEMA = [
-  { name: 'compact', selector: { boolean: {} } },
-  { name: 'combineSimilarEvents', selector: { boolean: {} } },
   {
     name: 'updateInterval',
     selector: { number: { min: 10, max: 3600, mode: 'box', unit_of_measurement: 's' } },
   },
-  { name: 'timeFormat', selector: { text: {} } },
-  { name: 'locale', selector: { text: {} } },
 ];
 
 const LABELS: Record<string, string> = {
@@ -303,6 +307,8 @@ export class CalendarWeekViewEditor extends LitElement {
 
       <ha-expansion-panel outlined .header=${'Buttons'}>
         <div class="section">
+          <div class="hint">The built-in floating + for quick event creation, plus your own header and floating buttons.</div>
+          ${this._form(data, BUTTONS_SCHEMA)}
           <ha-expansion-panel outlined .header=${'Header buttons'}>
             <div class="section">
               <div class="hint">Custom buttons at the top-right of the header. Each runs a Home Assistant action.</div>
@@ -318,7 +324,7 @@ export class CalendarWeekViewEditor extends LitElement {
         </div>
       </ha-expansion-panel>
 
-      <ha-expansion-panel outlined .header=${'Styling'}>
+      <ha-expansion-panel outlined .header=${'Display'}>
         <div class="section">
           <div class="toggles">
             <ha-formfield label="Card background">
@@ -341,6 +347,12 @@ export class CalendarWeekViewEditor extends LitElement {
                 {luxonToken} groups.
               </div>
               ${this._form(data, HEADER_SCHEMA)}
+            </div>
+          </ha-expansion-panel>
+          <ha-expansion-panel outlined .header=${'Day card'}>
+            <div class="section">
+              <div class="hint">Formatting for the event cards shown under each day.</div>
+              ${this._form(data, DAYCARD_SCHEMA)}
             </div>
           </ha-expansion-panel>
           <ha-expansion-panel outlined .header=${'Today highlight'}>
