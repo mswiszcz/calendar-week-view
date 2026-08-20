@@ -735,7 +735,6 @@ export class CalendarWeekViewCard extends LitElement {
       `--cwv-hour-h:${HOUR_H}px`,
       `--cwv-allday-h:${hasAllDay ? (expanded ? this._allDayH : ALLDAY_H) : 0}px`,
     ];
-    if (cfg.height) styleParts.push(`--cwv-min-h:${cfg.height}`);
     for (const [key, token] of Object.entries(COLOR_TOKENS)) {
       const value = cfg.colors?.[key as keyof typeof cfg.colors];
       if (value) styleParts.push(`${token}:${value}`);

@@ -28,9 +28,7 @@ export interface CalendarConfig {
   entity: string;
   name?: string;
   color?: string;
-  icon?: string;
   filter?: string;
-  filterText?: string;
   hideInLegend?: boolean;
   initiallyHidden?: boolean;
 }
@@ -62,7 +60,6 @@ export interface CardConfig {
   visibleDays?: number;
   hideWeekend?: boolean;
   lockToday?: boolean;
-  height?: string;
   highlightToday?: boolean;
   todayBorder?: boolean;
   todayText?: boolean;
