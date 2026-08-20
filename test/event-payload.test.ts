@@ -177,4 +177,12 @@ describe('draftError', () => {
       'End must be on or after the start',
     );
   });
+
+  test('when timed start is empty reports it', () => {
+    expect(draftError(draft({ start: '' }), ZONE)).toBe('Pick a start date and time');
+  });
+
+  test('when all-day start date is empty reports it', () => {
+    expect(draftError(draft({ allDay: true, date: '' }), ZONE)).toBe('Pick a start date');
+  });
 });

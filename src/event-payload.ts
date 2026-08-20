@@ -115,13 +115,17 @@ export function nudgedEnd(start: string, end: string, zone: string): string {
 export function draftError(d: EventDraft, zone: string): string | null {
   if (!d.summary.trim()) return 'Add a name';
   if (d.allDay) {
-    const s = DateTime.fromISO(d.date, { zone }).startOf('day');
-    const e = DateTime.fromISO(d.endDate, { zone }).startOf('day');
-    if (e.isValid && e < s) return 'End must be on or after the start';
+    const s = DateTime.fromISO(d.date, { zone });
+    const e = DateTime.fromISO(d.endDate, { zone });
+    if (!s.isValid) return 'Pick a start date';
+    if (!e.isValid) return 'Pick an end date';
+    if (e.startOf('day') < s.startOf('day')) return 'End must be on or after the start';
     return null;
   }
-  if (timed(d.end, zone) <= timed(d.start, zone)) {
-    return 'End must be after the start';
-  }
+  const start = timed(d.start, zone);
+  const end = timed(d.end, zone);
+  if (!start.isValid) return 'Pick a start date and time';
+  if (!end.isValid) return 'Pick an end date and time';
+  if (end <= start) return 'End must be after the start';
   return null;
 }

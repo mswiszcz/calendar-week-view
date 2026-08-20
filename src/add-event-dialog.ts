@@ -709,9 +709,12 @@ export class CalendarWeekViewAddDialog extends LitElement {
     const opt = (v: RecurrenceScope, label: string) => html`
       <button class=${this._scope === v ? 'on' : ''} @click=${() => (this._scope = v)}>${label}</button>
     `;
+    // No "All" for edits: this occurrence carries no master DTSTART, so a whole-series
+    // update would reanchor the series to this occurrence's date. "This" and "Following"
+    // both target via recurrence_id and are safe. (Delete keeps "All" — see the card.)
     return html`
       <div class="scope-note"><ha-icon icon="mdi:repeat"></ha-icon>This event repeats — apply changes to</div>
-      <div class="seg">${opt('this', 'This')}${opt('future', 'Following')}${opt('all', 'All')}</div>
+      <div class="seg">${opt('this', 'This')}${opt('future', 'Following')}</div>
     `;
   }
 
@@ -738,7 +741,13 @@ export class CalendarWeekViewAddDialog extends LitElement {
       const startTime = this._start.slice(11, 16) || '09:00';
       const endTime = this._end.slice(11, 16) || '10:00';
       this._start = `${this._date}T${startTime}`;
-      this._end = nudgedEnd(this._start, `${this._endDate}T${endTime}`, this._zone());
+      // A multi-day all-day span's inclusive last day maps to the next day's midnight so
+      // the final day stays covered; a single day keeps the plain start/end times.
+      const rawEnd =
+        this._endDate !== this._date
+          ? `${DateTime.fromISO(this._endDate).plus({ days: 1 }).toISODate() ?? this._endDate}T00:00`
+          : `${this._date}T${endTime}`;
+      this._end = nudgedEnd(this._start, rawEnd, this._zone());
     }
   }
 

@@ -108,6 +108,10 @@ export class CalendarWeekViewCard extends LitElement {
   /** Bumped whenever config or calendar visibility changes, so an in-flight fetch built
    * against the old state discards its result instead of applying it under the new one. */
   private _rev = 0;
+  /** Local ISO date the day columns were built for, so a tick can rebuild them at midnight. */
+  private _builtDay = '';
+  /** Guards the detached "next event" lookahead so slow ones don't pile up per refresh. */
+  private _upcomingLoading = false;
 
   static getStubConfig(): Partial<CardConfig> {
     return {
@@ -145,8 +149,12 @@ export class CalendarWeekViewCard extends LitElement {
     }
     // Live config edits reuse the same element; rebuild so the change takes effect at
     // once instead of waiting for the next poll, and invalidate any in-flight fetch.
+    // Reschedule the tick too, in case the edit just turned a static header live.
     this._rev++;
-    if (this._hass && this.isConnected) void this._fetchAndBuild();
+    if (this._hass && this.isConnected) {
+      this._scheduleTick();
+      void this._fetchAndBuild();
+    }
   }
 
   getCardSize(): number {
@@ -214,6 +222,11 @@ export class CalendarWeekViewCard extends LitElement {
     this._clockTimer = window.setTimeout(
       () => {
         this._tick++;
+        // Roll the columns over at local midnight so the "today" highlight and now-line
+        // move to the new day instead of lagging on yesterday until the next poll.
+        if (this._builtDay && !this._loading && this._now().toISODate() !== this._builtDay) {
+          void this._fetchAndBuild();
+        }
         this._scheduleTick();
       },
       Math.max(250, ms),
@@ -298,6 +311,7 @@ export class CalendarWeekViewCard extends LitElement {
       this._error = errors.join('\n');
       const finalEvents = this._dedupe(events);
       this._columns = buildDayColumns({ days, now, events: finalEvents });
+      this._builtDay = now.toISODate() ?? '';
       this._refreshUpcoming(finalEvents);
       if (cfg.weather) void this._subscribeWeather();
     } finally {
@@ -335,13 +349,19 @@ export class CalendarWeekViewCard extends LitElement {
       this._upcoming = pickUpcoming(now, windowEvents);
       return;
     }
+    if (this._upcomingLoading) return;
+    this._upcomingLoading = true;
     const rev = this._rev;
     void (async () => {
-      const start = now.startOf('day');
-      const { events } = await this._fetchRange(start, start.plus({ days: 14 }));
-      // Ignore a lookahead that finished after a newer config/visibility change.
-      if (!this.isConnected || rev !== this._rev) return;
-      this._upcoming = pickUpcoming(now, this._dedupe(events));
+      try {
+        const start = now.startOf('day');
+        const { events } = await this._fetchRange(start, start.plus({ days: 14 }));
+        // Ignore a lookahead that finished after a newer config/visibility change.
+        if (!this.isConnected || rev !== this._rev) return;
+        this._upcoming = pickUpcoming(now, this._dedupe(events));
+      } finally {
+        this._upcomingLoading = false;
+      }
     })();
   }
 
@@ -762,7 +782,15 @@ export class CalendarWeekViewCard extends LitElement {
       return;
     }
     const idx = this._columns.findIndex((c) => c.isToday);
-    if (idx < 0) return;
+    if (idx < 0) {
+      // Today is not a rendered column (e.g. a hidden weekend) — there is nothing to
+      // land on, so clear the jump state instead of leaving _jumping wedged, which
+      // would otherwise disable scroll recentering for the rest of the session.
+      this._scrollToToday = false;
+      this._jumpSmooth = false;
+      this._jumping = false;
+      return;
+    }
     const behavior: ScrollBehavior = this._jumpSmooth && !this._reducedMotion() ? 'smooth' : 'auto';
     this._axis().scrollTo(strip, this._columnScroll(strip, idx), behavior);
     if (this._isCalendar()) strip.scrollTop = this._startHour() * HOUR_H;
